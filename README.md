@@ -153,9 +153,25 @@ A second mini-game: click (or press space) to flap Clawd through the pipes. The 
 <img src="docs/flap.gif" width="640" alt="Clawd flapping through green pipes">
 </div>
 
+## Physics ball
+
+Turn on **Physics ball** in his menu and Clawd curls into a ball. Grab him and **throw** him: he has gravity, bounces off the edges of your screen and off the tops of your windows, rolls and spins as he goes, and settles on the Dock looking at your cursor. Click him for a hop, double-click to unroll him.
+
+<div align="center">
+<img src="docs/ball.gif" width="640" alt="Clawd as a bouncing, rolling ball with a motion trail, bouncing off a window and the screen edge">
+</div>
+
+### Basketball
+
+Pick **Play: Basketball** and he rolls into a ball while a hoop pops up on the edge of your screen. Throw him through it. **The farther the shot, the more points** (layup 1, mid-range 2, long range 3, downtown 4), and a clean **swish** that doesn't touch the rim is worth +1. The hoop moves after every basket, usually to the far side of the screen. You get 60 seconds, and your best score is saved. The rim and backboard are real obstacles, so shots can rattle in or bounce out.
+
+<div align="center">
+<img src="docs/basketball.gif" width="640" alt="Clawd the ball arcing into a hoop on the edge of the screen: SWISH! Downtown +5">
+</div>
+
 ## Weird moods
 
-Every few minutes, if you're not busy, something odd might happen: he builds **a tiny fort on top of one of your windows**, hides off the edge of the screen and **peeks back at you** (get too close and he jumps out with a "Boo!"), sneezes, or turns into a ghost. Switch them off under Features → Weird moods.
+Every few minutes, if you're not busy, something odd might happen: he builds **a tiny fort on top of one of your windows**, hides off the edge of the screen and **peeks back at you** (get too close and he jumps out with a "Boo!"), sneezes, or turns into a ghost. Switch them off under Features → Weird moods. Every item in the Features menu shows a tick when it's on, and he confirms each change.
 
 <div align="center">
 <img src="docs/moods.png" width="640" alt="Clawd's fort on a window, and peeking over the edge of the screen">

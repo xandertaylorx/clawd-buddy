@@ -31,6 +31,9 @@ struct Pose: Hashable {
     var weather: Weather = .none
     var night = false
     var twinkle = 0            // 0...3, animates rain / snow / stars
+    var ball = false           // physics ball: Clawd curled up
+    var ballStep = 0           // rotation, 0...31
+    var ballSquash = 0         // 1 = flattened by the floor, 2 = by a wall
 }
 
 enum Hat: String { case none, party, santa, wizard, crown, pumpkin, nightcap }
@@ -55,6 +58,32 @@ func drawClawd(_ p: Pose, unit u: CGFloat, origin o: CGPoint) {
         c.setFill()
         NSRect(x: o.x + CGFloat(x) * u, y: o.y + CGFloat(y) * u,
                width: CGFloat(w) * u, height: CGFloat(h) * u).fill()
+    }
+    if p.ball {
+        // a curled-up Clawd: a pixel disc whose face and dark spots orbit as it rolls
+        let cx = 7.5, cy = 7.0
+        let th = Double(p.ballStep) * .pi / 16
+        let rx = p.ballSquash == 2 ? 5.3 : (p.ballSquash == 1 ? 7.0 : 6.4)
+        let ry = p.ballSquash == 1 ? 5.3 : (p.ballSquash == 2 ? 7.0 : 6.4)
+        let dark = rgb(0.72, 0.38, 0.26), light = rgb(0.96, 0.62, 0.48)
+        for row in -7...6 {
+            let n = (Double(row) + 0.5) / ry
+            guard abs(n) < 1 else { continue }
+            let hw = rx * (1 - n * n).squareRoot()
+            let x0 = Int((cx - hw).rounded()), x1 = Int((cx + hw).rounded())
+            if x1 > x0 { rect(x0, 7 + row, x1 - x0, 1, row <= -5 ? dark : clawdOrange) }
+        }
+        rect(Int(cx - 3), 7 + 4, 2, 1, light)
+        for k in 0..<4 {
+            let a = th + Double(k) * .pi / 2
+            rect(Int((cx + cos(a) * (rx - 0.6) - 1).rounded()), Int((cy + sin(a) * (ry - 0.6) - 1).rounded()), 2, 2, dark)
+        }
+        let phi = th + .pi / 2
+        let fx = cx + cos(phi) * 2.6, fy = cy + sin(phi) * 2.6
+        for sgn in [-1.0, 1.0] {
+            rect(Int((fx - sin(phi) * 1.7 * sgn).rounded()), Int((fy + cos(phi) * 1.7 * sgn - 1).rounded()), 1, 2, clawdInk)
+        }
+        return
     }
     let sq = p.squash ? 1 : 0
     let b = 2 - sq + (p.squash ? 0 : p.bob)   // body base row
@@ -1074,7 +1103,7 @@ let needsNotification = Notification.Name("com.randomclaudething.clawd.needs")
 let doNotification = Notification.Name("com.randomclaudething.clawd.do")
 
 final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    enum Mode { case desk, dragging, falling, hopping, docking, docked, game, organizing, flap, mood }
+    enum Mode { case desk, dragging, falling, hopping, docking, docked, game, organizing, flap, mood, ball }
 
     static let size = NSSize(width: 96, height: 88)
     static let toggleDefaults: [String: Bool] = [
@@ -1203,6 +1232,10 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let wx = WeatherState()
     let fl = FlapState()
     let mood = MoodState()
+    let ball = BallState()
+    let hoop = HoopState()
+    var openMenus = Set<ObjectIdentifier>()
+    var menuOpenSince = 0.0
     var downloads = 0
     var lastDlSay = 0.0
 
@@ -1288,14 +1321,35 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "github": self.toggleGitHub()
             case "ocr": self.screenshotToText()
             case "needs": self.needsYou("Claude needs you!")
+            case "menutest":   // test helper: report what the Features menu would show
+                let menu = self.buildMenu(docked: false)
+                var report: [String] = []
+                for top in menu.items {
+                    guard top.title == "Features", let sub = top.submenu else { continue }
+                    self.menuNeedsUpdate(sub)
+                    report = sub.items.map { "\($0.title)=\($0.state == .on ? "ON" : "off")" }
+                }
+                UserDefaults.standard.set(report.joined(separator: "; "), forKey: "menuTestReport")
             case "weather": self.fetchWeather(announce: true)
+            case "ball": self.startBall()
+            case "hoops": self.startHoops()
+            case "hoopshot":   // test helper: lob the ball through the hoop from wherever it is
+                guard self.hoop.active else { break }
+                let t = 1.2
+                let rim = CGPoint(x: (self.hoop.front.x + self.hoop.back.x) / 2, y: self.hoop.rimY)
+                self.ball.held = false
+                self.ball.pos = CGPoint(x: rim.x + (self.hoop.side == 1 ? -420 : 420), y: BallState.radius + self.screen.visibleFrame.minY)
+                self.ball.vel = CGPoint(x: (rim.x - self.ball.pos.x) / CGFloat(t), y: (rim.y - self.ball.pos.y + 0.5 * 1900 * CGFloat(t * t)) / CGFloat(t))
+                self.hoop.shotFrom = self.ball.pos
+                self.hoop.scored = false
+                self.hoop.touchedRim = false
             case "tray":
                 self.tray.configure(Tile.allCases)
                 self.trayUp = true
                 self.trayHideAt = CACurrentMediaTime() + 4
                 self.tray.show()
             case "stop":
-                if self.mode == .flap { self.endFlap() } else if self.mode == .game { self.endGame(early: true) }
+                if self.mode == .flap { self.endFlap() } else if self.mode == .game { self.endGame(early: true) } else if self.mode == .ball { self.endBall() }
             default: break
             }
         }
@@ -1410,6 +1464,12 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: dragging & touching
 
     func dragStarted() {
+        if mode == .ball {
+            ball.held = true
+            ball.lastCenter = CGPoint(x: panel.frame.origin.x + Pet.ballCenter.x, y: panel.frame.origin.y + Pet.ballCenter.y)
+            ball.vEst = .zero
+            return
+        }
         if mode == .organizing || mode == .flap { return }
         if mode == .mood { cancelMood() }
         if mode == .game { endGame(early: true) }
@@ -1422,6 +1482,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func dragMoved() {
+        if mode == .ball { return }
         let m = NSEvent.mouseLocation
         let scr = NSScreen.screens.first { $0.frame.contains(m) } ?? NSScreen.main ?? NSScreen.screens[0]
         let zone = m.y > scr.frame.maxY - max(46, scr.safeAreaInsets.top + 24)
@@ -1432,6 +1493,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func dragEnded() {
+        if mode == .ball { releaseBall(); return }
         if mode == .organizing || mode == .flap { return }
         x = panel.frame.origin.x
         y = panel.frame.origin.y
@@ -1447,6 +1509,12 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func poked() {
+        if mode == .ball {
+            let t = CACurrentMediaTime()
+            if t - ball.lastClick < 0.4 { endBall() } else { ball.vel.y = 700; Sfx.play(.hop) }
+            ball.lastClick = t
+            return
+        }
         if mode == .flap { flap(); return }
         if mode == .game || mode == .organizing || mode == .mood { return }
         if dev.attentionUntil > 0 { clearAttention(); brain.start(.jump); say("On it!", hold: 2); return }
@@ -1630,6 +1698,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         m.addItem(.separator())
         let feats = NSMenu()
+        feats.delegate = self
         for (title, key) in [("Break nudges (water, stretch)", "nudges"), ("Low battery warnings", "battery"),
                              ("Watch Claude Code", "claude"), ("Calendar heads-up", "calendar"),
                              ("Climb on windows", "climb"), ("Sounds (8-bit)", "sounds"), ("Quiet mode", "quiet"),
@@ -1640,6 +1709,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         sub("Features", feats)
         let outfit = NSMenu()
+        outfit.delegate = self
         for (title, key) in [("Auto (seasonal)", "auto"), ("None", "none"), ("Party hat", "party"), ("Santa hat", "santa"),
                              ("Wizard hat", "wizard"), ("Crown", "crown"), ("Pumpkin", "pumpkin")] {
             add(title, #selector(setOutfit(_:)), to: outfit, obj: key)
@@ -1652,6 +1722,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add("Dance!", #selector(danceNow))
         add(mode == .game ? "Stop game" : "Play: Token Catch", #selector(toggleGame))
         add(mode == .flap ? "Stop Flappy" : "Play: Flappy Clawd", #selector(toggleFlap))
+        add("Physics ball", #selector(toggleBall), tag: 94)
+        add(hoop.active ? "Stop basketball" : "Play: Basketball", #selector(toggleHoops))
         if !docked { add("Climb a window", #selector(climbNow)) }
         m.addItem(.separator())
         add("Launch at login", #selector(toggleLogin))
@@ -1659,6 +1731,18 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add("Quit Clawd", #selector(quit))
         return m
     }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        openMenus.insert(ObjectIdentifier(menu))
+        menuOpenSince = CACurrentMediaTime()
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        openMenus.remove(ObjectIdentifier(menu))
+    }
+
+    /// While one of Clawd's menus is open he stands still, so you can actually aim at it.
+    var menuIsOpen: Bool { !openMenus.isEmpty && CACurrentMediaTime() - menuOpenSince < 120 }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         if menu.title == "Notes" {
@@ -1797,6 +1881,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             if item.tag == 98 { item.title = statsLine() }
             if item.tag == 95 { item.title = weatherSummary() }
+            if item.tag == 94 { item.state = mode == .ball ? .on : .off }
             if item.tag == 96 { item.isHidden = UserDefaults.standard.data(forKey: "lastOrganize") == nil }
             if item.tag == 97 {
                 item.isHidden = latest == nil
@@ -1825,6 +1910,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func toggleDefault(_ item: NSMenuItem) {
         guard let k = item.representedObject as? String else { return }
         UserDefaults.standard.set(!on(k), forKey: k)
+        say("\(item.title): \(on(k) ? "on" : "off")", hold: 1.8, typewriter: false)
         if k == "calendar" && on(k) { enableCalendar() }
         if k == "clipboard" && !on(k) { clipboard.removeAll() }
     }
@@ -2694,6 +2780,11 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let dt = min(now - last, 0.1)
         last = now
 
+        if menuIsOpen && mode == .desk {
+            moveWindow()
+            return
+        }
+
         switch mode {
         case .desk:
             brain.update(dt)
@@ -2775,6 +2866,10 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 brain.start(.idle, dur: 0.8)
                 updateOverride()
                 maybeShowPrompt()
+                if ball.pending { ball.pending = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                    self?.startBall()
+                    if self?.ball.pendingHoops == true { self?.ball.pendingHoops = false; self?.beginHoops() }
+                } }
                 if fl.pending { fl.pending = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.startFlap() } }
                 if pendingPanel { pendingPanel = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.toggleGitHub() } }
                 if let f = pendingOrganize {
@@ -2796,6 +2891,9 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         case .flap:
             flapTick(dt, now: now)
+
+        case .ball:
+            ballTick(dt, now: now)
 
         case .mood:
             moodTick(dt, now: now)

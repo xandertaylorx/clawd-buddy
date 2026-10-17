@@ -382,6 +382,12 @@ func renderArt(into dir: String) {
     writeGIF(flapFrames(), to: "\(dir)/flap.gif")
     writeCG(githubImage(), to: "\(dir)/github.png")
     writeCG(moodsImage(), to: "\(dir)/moods.png")
+    let bk = basketballFrames()
+    writeGIF(bk, to: "\(dir)/basketball.gif")
+    if let dbg = ProcessInfo.processInfo.environment["CLAWD_ART_DEBUG"] { writeCG(bk[16].0, to: "\(dbg)/bk16.png"); writeCG(bk[30].0, to: "\(dbg)/bk30.png") }
+    let bf = ballFrames()
+    writeGIF(bf, to: "\(dir)/ball.gif")
+    if let dbg = ProcessInfo.processInfo.environment["CLAWD_ART_DEBUG"] { writeCG(bf[12].0, to: "\(dbg)/ball12.png"); writeCG(bf[60].0, to: "\(dbg)/ball60.png") }
 }
 
 // MARK: organise + links visuals
@@ -646,4 +652,134 @@ func moodsImage() -> CGImage {
         label("peek-a-boo", x: 490, y: 190, size: 10)
         label("(+ sneezes and ghost mode)", x: 490, y: 174, size: 10)
     }
+}
+
+// MARK: physics ball visual (same constants as the live physics)
+
+func ballFrames() -> [(CGImage, Double)] {
+    let w = 640, h = 280
+    let R = BallState.radius
+    let floor: CGFloat = 34
+    let platform = CGRect(x: 330, y: 0, width: 170, height: 118)   // a window whose top edge is at y = 118
+    var pos = CGPoint(x: 90, y: 190), vel = CGPoint(x: 330, y: 260)
+    var angle = 0.0, spin = -2.5
+    var squash = 0, squashT = 0.0
+    var trail: [CGPoint] = []
+    var frames: [(CGImage, Double)] = []
+    let simDt = 1.0 / 180
+    var accum = 0.0
+    for frame in 0..<110 {
+        for _ in 0..<Int(0.055 / simDt) {
+            let prevY = pos.y
+            vel.y -= 1900 * CGFloat(simDt)
+            pos.x += vel.x * CGFloat(simDt); pos.y += vel.y * CGFloat(simDt)
+            var onSurface = false
+            func hitY(_ top: CGFloat) {
+                pos.y = top + R
+                if vel.y < 0 {
+                    if -vel.y > 220 { squash = 1; squashT = 0.13 }
+                    vel.y = -vel.y > 130 ? -vel.y * 0.72 : 0
+                }
+                onSurface = true
+            }
+            if pos.y < floor + R { hitY(floor) }
+            if vel.y <= 0, prevY - R >= platform.maxY - 2, pos.y - R < platform.maxY, pos.x > platform.minX - 8, pos.x < platform.maxX + 8 { hitY(platform.maxY) }
+            if pos.x < R { pos.x = R; if vel.x < 0 { vel.x = -vel.x * 0.75; squash = 2; squashT = 0.13 } }
+            if pos.x > CGFloat(w) - R { pos.x = CGFloat(w) - R; if vel.x > 0 { vel.x = -vel.x * 0.75; squash = 2; squashT = 0.13 } }
+            if onSurface && abs(vel.y) < 8 {
+                vel.x *= CGFloat(exp(-0.35 * simDt)); angle -= Double(vel.x / R) * simDt; spin = Double(-vel.x / R)
+            } else { angle += spin * simDt }
+            squashT -= simDt
+            accum += simDt
+        }
+        if frame % 2 == 0 { trail.append(pos); if trail.count > 9 { trail.removeFirst() } }
+        let step = ((Int((angle / (.pi / 16)).rounded()) % 32) + 32) % 32
+        let img = renderScene(w, h) {
+            backdrop(w, h)
+            // a window to bounce on
+            let win = NSBezierPath(roundedRect: NSRect(x: platform.minX, y: -20, width: platform.width, height: platform.maxY + 20), xRadius: 8, yRadius: 8)
+            NSColor(white: 1, alpha: 0.8).setFill(); win.fill()
+            NSColor(white: 0, alpha: 0.12).setStroke(); win.stroke()
+            for (i, c) in [rgb(0.95, 0.4, 0.35), rgb(0.97, 0.75, 0.25), rgb(0.4, 0.8, 0.4)].enumerated() {
+                c.setFill(); NSBezierPath(ovalIn: NSRect(x: platform.minX + 12 + CGFloat(i) * 15, y: platform.maxY - 20, width: 9, height: 9)).fill()
+            }
+            for (i, t) in trail.enumerated() {
+                NSColor(red: 0.85, green: 0.47, blue: 0.34, alpha: 0.07 + 0.03 * CGFloat(i)).setFill()
+                NSBezierPath(ovalIn: NSRect(x: t.x - 6, y: t.y - 6, width: 12, height: 12)).fill()
+            }
+            var p = Pose(); p.ball = true; p.ballStep = step; p.ballSquash = squashT > 0 ? squash : 0
+            let u: CGFloat = 6
+            sprite(p, x: pos.x - 7.5 * u, y: pos.y - 7 * u, unit: u, shadow: false)
+            if frame < 14 { label("throw me ➜", x: 140, y: 236, size: 12, color: NSColor(white: 0.35, alpha: 1)) }
+        }
+        frames.append((img, 0.055))
+    }
+    return frames
+}
+
+// MARK: basketball visual
+
+func basketballFrames() -> [(CGImage, Double)] {
+    let w = 640, h = 345
+    let R = BallState.radius
+    let floor: CGFloat = 34
+    let rimY: CGFloat = 190
+    let hoopX = CGFloat(w) - HoopView.size.width
+    let front = hoopX + 11, back = hoopX + HoopView.size.width - 18
+    let t = 0.75
+    var pos = CGPoint(x: 90, y: floor + R)
+    let target = CGPoint(x: (front + back) / 2, y: rimY)
+    var vel = CGPoint(x: (target.x - pos.x) / CGFloat(t), y: (target.y - pos.y + 0.5 * 1900 * CGFloat(t * t)) / CGFloat(t))
+    var angle = 0.0, spin = -2.0
+    var scored = false, sway: CGFloat = 0, scoreFrame = -1
+    let hv = HoopView(frame: NSRect(origin: .zero, size: HoopView.size))
+    var frames: [(CGImage, Double)] = []
+    let simDt = 1.0 / 180
+    var squash = 0, squashT = 0.0
+    var trail: [CGPoint] = []
+    for frame in 0..<96 {
+        let held = frame < 8     // sitting there, then thrown
+        if !held {
+            for _ in 0..<Int(0.055 / simDt) {
+                let prevY = pos.y
+                vel.y -= 1900 * CGFloat(simDt)
+                pos.x += vel.x * CGFloat(simDt); pos.y += vel.y * CGFloat(simDt)
+                if !scored, prevY > rimY, pos.y <= rimY, pos.x > front - 100, pos.x < back + 4 {
+                    scored = true; scoreFrame = frame; vel.x *= 0.4; vel.y *= 0.55; sway = 1
+                }
+                var onSurface = false
+                if pos.y < floor + R {
+                    pos.y = floor + R
+                    if vel.y < 0 { if -vel.y > 220 { squash = 1; squashT = 0.13 }; vel.y = -vel.y > 130 ? -vel.y * 0.72 : 0 }
+                    onSurface = true
+                }
+                if pos.x > CGFloat(w) - R { pos.x = CGFloat(w) - R; if vel.x > 0 { vel.x = -vel.x * 0.75 } }
+                if onSurface && abs(vel.y) < 8 { vel.x *= CGFloat(exp(-0.35 * simDt)); angle -= Double(vel.x / R) * simDt; spin = Double(-vel.x / R) }
+                else { angle += spin * simDt }
+                squashT -= simDt
+            }
+            if frame % 2 == 0 { trail.append(pos); if trail.count > 10 { trail.removeFirst() } }
+        }
+        if sway > 0 { sway = max(0, sway - 0.07) }
+        let step = ((Int((angle / (.pi / 16)).rounded()) % 32) + 32) % 32
+        let img = renderScene(w, h) {
+            backdrop(w, h)
+            hv.mirrored = false
+            hv.sway = sway * CGFloat(sin(Double(frame) * 1.3)) * 9
+            NSGraphicsContext.current?.saveGraphicsState()
+            let tr = NSAffineTransform(); tr.translateX(by: hoopX, yBy: rimY - HoopView.rimLocalY); tr.concat()
+            hv.draw(hv.bounds)
+            NSGraphicsContext.current?.restoreGraphicsState()
+            for (i, p) in trail.enumerated() {
+                NSColor(red: 0.85, green: 0.47, blue: 0.34, alpha: 0.07 + 0.03 * CGFloat(i)).setFill()
+                NSBezierPath(ovalIn: NSRect(x: p.x - 6, y: p.y - 6, width: 12, height: 12)).fill()
+            }
+            var p = Pose(); p.ball = true; p.ballStep = step; p.ballSquash = squashT > 0 ? squash : 0
+            sprite(p, x: pos.x - 7.5 * 6, y: pos.y - 7 * 6, unit: 6, shadow: false)
+            if frame < 8 { label("throw me ➜  farther = more points", x: 230, y: 300, size: 12, color: NSColor(white: 0.35, alpha: 1)) }
+            if scoreFrame >= 0 && frame >= scoreFrame && frame < scoreFrame + 22 { bubble("SWISH! Downtown: +5", cx: 430, bottom: 250) }
+        }
+        frames.append((img, 0.055))
+    }
+    return frames
 }

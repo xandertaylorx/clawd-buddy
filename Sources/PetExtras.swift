@@ -137,6 +137,7 @@ extension Pet {
     var bubbleAnchor: NSRect {
         if mode == .organizing { return orgBubbleAnchor }
         if mode == .flap { return fl.anchor }
+        if mode == .ball && hoop.active { return hoop.anchor }
         if trayUp && tray.isVisible { return tray.panel.frame }
         return panel.frame
     }
