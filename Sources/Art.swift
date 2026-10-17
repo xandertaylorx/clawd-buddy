@@ -378,6 +378,10 @@ func renderArt(into dir: String) {
     writeGIF(of, to: "\(dir)/organize.gif")
     if let dbg = ProcessInfo.processInfo.environment["CLAWD_ART_DEBUG"] { writeCG(of[min(40, of.count - 1)].0, to: "\(dbg)/mid.png"); writeCG(of[of.count - 1].0, to: "\(dbg)/end.png") }
     writeCG(linksImage(), to: "\(dir)/links.png")
+    writeCG(accessoriesImage(), to: "\(dir)/accessories.png")
+    writeGIF(flapFrames(), to: "\(dir)/flap.gif")
+    writeCG(githubImage(), to: "\(dir)/github.png")
+    writeCG(moodsImage(), to: "\(dir)/moods.png")
 }
 
 // MARK: organise + links visuals
@@ -507,5 +511,139 @@ func linksImage() -> CGImage {
             chip.stroke()
             (text as NSString).draw(at: NSPoint(x: r.minX + 11, y: r.minY + 6), withAttributes: a)
         }
+    }
+}
+
+// MARK: v1.4 visuals: accessories, flappy, github panel, moods
+
+func accessoriesImage() -> CGImage {
+    let items: [(String, Pose)] = [
+        ("rain", Pose(eyes: .happy, weather: .rain, twinkle: 1)), ("snow", Pose(weather: .snow, twinkle: 2)),
+        ("hot", Pose(weather: .hot)), ("cold", Pose(weather: .cold)),
+        ("night", Pose(eyes: .sleep, hat: .nightcap, night: true, twinkle: 1)),
+    ]
+    let w = 640, h = 170
+    return renderScene(w, h) {
+        backdrop(w, h, floor: 0)
+        let cell = CGFloat(w) / CGFloat(items.count)
+        for (i, it) in items.enumerated() {
+            let cx = cell * (CGFloat(i) + 0.5)
+            sprite(it.1, x: cx - 36, y: 52, unit: 4.8, shadow: false)
+            label(it.0, x: cx, y: 20, size: 11)
+        }
+    }
+}
+
+func flapFrames() -> [(CGImage, Double)] {
+    let w = 640, h = 250
+    let floorY: CGFloat = 34
+    let gaps: [CGFloat] = [140, 95, 165, 110, 150]
+    let speed: CGFloat = 190, spacing: CGFloat = 250, gap: CGFloat = 130
+    let clawdX: CGFloat = 120
+    let pv = PipeView(frame: .zero)
+    var frames: [(CGImage, Double)] = []
+    var cy: CGFloat = 120
+    let dt = 0.07
+    for i in 0..<86 {
+        let t = Double(i) * dt
+        let off = speed * CGFloat(t)
+        let xs = gaps.indices.map { 700 + CGFloat($0) * spacing - off }
+        // aim for the gap of the next pipe still ahead
+        let next = gaps.indices.first(where: { xs[$0] + 72 > clawdX + 10 }) ?? 0
+        let target = gaps[next] - 40 + 14 * CGFloat(sin(t * 9))
+        cy += (target - cy) * 0.16
+        let score = xs.filter { $0 + 72 < clawdX }.count
+        let img = renderScene(w, h) {
+            backdrop(w, h)
+            for (k, gx) in xs.enumerated() where gx > -80 && gx < CGFloat(w) + 10 {
+                let gc = floorY + gaps[k]
+                pv.capAtBottom = true
+                var topH = CGFloat(h) - (gc + gap / 2)
+                if topH > 0 {
+                    pv.frame = NSRect(x: 0, y: 0, width: 72, height: topH)
+                    NSGraphicsContext.current?.saveGraphicsState()
+                    let tr = NSAffineTransform(); tr.translateX(by: gx, yBy: gc + gap / 2); tr.concat()
+                    pv.draw(pv.bounds)
+                    NSGraphicsContext.current?.restoreGraphicsState()
+                }
+                pv.capAtBottom = false
+                topH = gc - gap / 2 - floorY
+                if topH > 0 {
+                    pv.frame = NSRect(x: 0, y: 0, width: 72, height: topH)
+                    NSGraphicsContext.current?.saveGraphicsState()
+                    let tr = NSAffineTransform(); tr.translateX(by: gx, yBy: floorY); tr.concat()
+                    pv.draw(pv.bounds)
+                    NSGraphicsContext.current?.restoreGraphicsState()
+                }
+            }
+            let flapping = Int(t / 0.18) % 2 == 0
+            let p = Pose(eyes: .wide, armL: flapping ? 5 : 1, armR: flapping ? 5 : 1, legs: 1)
+            sprite(p, x: clawdX - 45 + 20, y: floorY + cy - 30, shadow: false)
+            bubble("Score \(score)", cx: 320, bottom: CGFloat(h) - 50)
+        }
+        frames.append((img, dt))
+    }
+    return frames
+}
+
+func githubImage() -> CGImage {
+    let now = Date()
+    let data = GHData(login: "you", repos: [
+        GHRepo(name: "clawd-buddy", nwo: "you/clawd-buddy", url: "", stars: 12, isPrivate: false, pushed: now.addingTimeInterval(-3600), prs: 2, ci: .ok),
+        GHRepo(name: "side-project", nwo: "you/side-project", url: "", stars: 3, isPrivate: true, pushed: now.addingTimeInterval(-86400), prs: 0, ci: .fail),
+        GHRepo(name: "dotfiles", nwo: "you/dotfiles", url: "", stars: 1, isPrivate: false, pushed: now.addingTimeInterval(-5 * 86400), prs: 0, ci: .none),
+        GHRepo(name: "website", nwo: "you/website", url: "", stars: 7, isPrivate: false, pushed: now.addingTimeInterval(-600), prs: 1, ci: .running),
+    ], reviews: [GHReview(title: "Fix flaky login test", repo: "team/api", url: "")], at: now)
+    let list = RepoListView(frame: NSRect(x: 0, y: 0, width: RepoListView.width, height: RepoListView.height(data)))
+    list.data = data
+    let w = 640, h = Int(RepoListView.height(data)) + 110
+    return renderScene(w, h) {
+        backdrop(w, h)
+        sprite(Pose(eyes: .happy, armR: 3), x: 275, y: 34)
+        NSGraphicsContext.current?.saveGraphicsState()
+        let tr = NSAffineTransform(); tr.translateX(by: (CGFloat(w) - RepoListView.width) / 2, yBy: 106); tr.concat()
+        list.draw(list.bounds)
+        NSGraphicsContext.current?.restoreGraphicsState()
+    }
+}
+
+func moodsImage() -> CGImage {
+    let w = 640, h = 230
+    return renderScene(w, h) {
+        backdrop(w, h)
+        // left: a fort on a window's top edge
+        let win = NSBezierPath(roundedRect: NSRect(x: 40, y: -20, width: 300, height: 150), xRadius: 10, yRadius: 10)
+        NSColor(white: 1, alpha: 0.85).setFill()
+        win.fill()
+        NSColor(white: 0, alpha: 0.12).setStroke()
+        win.stroke()
+        for (i, c) in [rgb(0.95, 0.4, 0.35), rgb(0.97, 0.75, 0.25), rgb(0.4, 0.8, 0.4)].enumerated() {
+            c.setFill()
+            NSBezierPath(ovalIn: NSRect(x: 54 + CGFloat(i) * 16, y: 112, width: 10, height: 10)).fill()
+        }
+        let top: CGFloat = 130
+        sprite(Pose(eyes: .happy, squash: true), x: 145, y: top)
+        let brick = BrickView(frame: NSRect(x: 0, y: 0, width: 20, height: 14))
+        for side in [-1, 1] {
+            let outer = 145 + 45 + CGFloat(side) * 64
+            for row in 0..<3 { for col in 0..<2 {
+                NSGraphicsContext.current?.saveGraphicsState()
+                let tr = NSAffineTransform(); tr.translateX(by: outer + CGFloat(side) * CGFloat(col) * 22 - 10, yBy: top + CGFloat(row) * 14); tr.concat()
+                brick.draw(brick.bounds)
+                NSGraphicsContext.current?.restoreGraphicsState()
+            } }
+        }
+        bubble("Fort complete. 🏰", cx: 190, bottom: 186)
+        label("builds a fort on a window", x: 190, y: 8, size: 10)
+        // right: peeking over the bottom edge of the screen
+        let bg = NSBezierPath(roundedRect: NSRect(x: 380, y: 14, width: 220, height: 200), xRadius: 12, yRadius: 12)
+        NSColor(white: 1, alpha: 0.5).setFill()
+        bg.fill()
+        NSGraphicsContext.current?.saveGraphicsState()
+        NSBezierPath(rect: NSRect(x: 380, y: 14, width: 220, height: 200)).addClip()
+        sprite(Pose(eyeShift: -1), x: 445, y: -2, unit: 6, shadow: false)
+        NSGraphicsContext.current?.restoreGraphicsState()
+        label("peek-a-boo", x: 490, y: 190, size: 10)
+        label("(+ sneezes and ghost mode)", x: 490, y: 174, size: 10)
     }
 }

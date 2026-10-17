@@ -28,9 +28,13 @@ struct Pose: Hashable {
     var timerBar = 0           // 0...9 cells of progress bar left
     var timerSecs = false      // last minute: digits are seconds
     var timerBreak = false
+    var weather: Weather = .none
+    var night = false
+    var twinkle = 0            // 0...3, animates rain / snow / stars
 }
 
-enum Hat: String { case none, party, santa, wizard, crown, pumpkin }
+enum Hat: String { case none, party, santa, wizard, crown, pumpkin, nightcap }
+enum Weather { case none, rain, snow, hot, cold }
 
 let canvasW = 15
 let canvasH = 14
@@ -93,8 +97,12 @@ func drawClawd(_ p: Pose, unit u: CGFloat, origin o: CGPoint) {
     }
     // hat
     let top = b + bodyH
-    switch p.hat {
+    switch (p.weather == .rain || p.weather == .snow) ? Hat.none : p.hat {
     case .none: break
+    case .nightcap:
+        let navy = rgb(0.22, 0.25, 0.6)
+        rect(4, top, 7, 1, navy); rect(5, top + 1, 5, 1, navy); rect(7, top + 2, 4, 1, navy)
+        rect(11, top + 1, 2, 1, .white)
     case .party:
         rect(5, top, 5, 1, rgb(0.55, 0.35, 0.85)); rect(6, top + 1, 3, 1, rgb(0.55, 0.35, 0.85))
         rect(7, top + 2, 1, 1, rgb(0.55, 0.35, 0.85)); rect(7, top + 3, 1, 1, rgb(1, 0.85, 0.2))
@@ -124,6 +132,33 @@ func drawClawd(_ p: Pose, unit u: CGFloat, origin o: CGPoint) {
             rect(ex, ey + 1, 1, 1, clawdInk)
             rect(ex + 1, ey, 1, 1, clawdInk)
         case .sleep: rect(ex - 1, ey, 3, 1, clawdInk)
+        }
+    }
+    // weather + night extras
+    let tw = p.twinkle
+    switch p.weather {
+    case .none: break
+    case .rain:
+        let c1 = rgb(0.25, 0.45, 0.85), c2 = rgb(0.85, 0.9, 1)
+        rect(5, top + 3, 5, 1, c1); rect(3, top + 2, 9, 1, c1); rect(2, top + 1, 11, 1, c1)
+        rect(7, top + 3, 1, 1, c2); rect(4, top + 2, 1, 1, c2); rect(10, top + 2, 1, 1, c2)
+        rect(7, top, 1, 1, clawdInk)
+        for (i, dx) in [0, 14, 12, 1].enumerated() where top - 1 - ((i + tw) % 4) >= 0 {
+            rect(dx, top - 1 - ((i + tw) % 4), 1, 1, rgb(0.45, 0.65, 0.95))
+        }
+    case .snow:
+        rect(4, top, 7, 1, .white); rect(5, top + 1, 5, 1, .white)
+        for k in 0..<4 { rect((k * 4 + tw * 3) % 15, top + 1 + (k + tw) % 4, 1, 1, .white) }
+    case .hot:
+        rect(3, ey, 3, 2, clawdInk); rect(9, ey, 3, 2, clawdInk); rect(6, ey + 1, 3, 1, clawdInk)
+        rect(4, ey + 1, 1, 1, rgb(0.45, 0.45, 0.5))
+    case .cold:
+        let red = rgb(0.8, 0.2, 0.25)
+        rect(2, top - 1, 11, 1, red); rect(11, top - 3, 2, 2, red)
+    }
+    if p.night && p.timer == nil {
+        for (i, pt) in [(0, top + 1), (14, top + 2), (13, top + 4)].enumerated() where (tw + i) % 3 != 0 {
+            rect(pt.0, min(pt.1, canvasH - 1), 1, 1, rgb(1, 0.87, 0.3))
         }
     }
 }
@@ -1035,14 +1070,17 @@ struct Token { var panel: TokenPanel; var kind: TokenKind; var x: CGFloat; var y
 
 let sayNotification = Notification.Name("com.randomclaudething.clawd.say")
 let organizeNotification = Notification.Name("com.randomclaudething.clawd.organize")
+let needsNotification = Notification.Name("com.randomclaudething.clawd.needs")
+let doNotification = Notification.Name("com.randomclaudething.clawd.do")
 
 final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    enum Mode { case desk, dragging, falling, hopping, docking, docked, game, organizing }
+    enum Mode { case desk, dragging, falling, hopping, docking, docked, game, organizing, flap, mood }
 
     static let size = NSSize(width: 96, height: 88)
     static let toggleDefaults: [String: Bool] = [
         "nudges": true, "battery": true, "claude": true, "calendar": false,
         "climb": true, "sounds": true, "quiet": false, "clipboard": false, "updates": true,
+        "bedtime": true, "gitnudges": true, "ghwatch": true, "moods": true,
     ]
 
     var mode = Mode.desk
@@ -1160,6 +1198,11 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var promptFolder: URL?
     var pendingFolder: URL?
     var pendingOrganize: URL?
+    var pendingPanel = false
+    let dev = DevState()
+    let wx = WeatherState()
+    let fl = FlapState()
+    let mood = MoodState()
     var downloads = 0
     var lastDlSay = 0.0
 
@@ -1230,6 +1273,34 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.startOrganize(url, fromFinder: true)
             }
         }
+        DistributedNotificationCenter.default().addObserver(forName: needsNotification, object: nil, queue: .main) { [weak self] n in
+            self?.needsYou(n.userInfo?["text"] as? String ?? "")
+        }
+        DistributedNotificationCenter.default().addObserver(forName: doNotification, object: nil, queue: .main) { [weak self] n in
+            guard let self, let what = n.userInfo?["what"] as? String else { return }
+            switch what {
+            case "flap": self.startFlap()
+            case "game": self.startGame()
+            case "fort": self.startMood(.fort)
+            case "peek": self.startMood(.peek)
+            case "sneeze": self.startMood(.sneeze)
+            case "ghost": self.startMood(.ghost)
+            case "github": self.toggleGitHub()
+            case "ocr": self.screenshotToText()
+            case "needs": self.needsYou("Claude needs you!")
+            case "weather": self.fetchWeather(announce: true)
+            case "tray":
+                self.tray.configure(Tile.allCases)
+                self.trayUp = true
+                self.trayHideAt = CACurrentMediaTime() + 4
+                self.tray.show()
+            case "stop":
+                if self.mode == .flap { self.endFlap() } else if self.mode == .game { self.endGame(early: true) }
+            default: break
+            }
+        }
+        setUpGitHubPanel()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in self?.fetchWeather() }
         registerHotKey()
         if on("calendar") { enableCalendar() }
         if let v = UserDefaults.standard.string(forKey: "justUpdated") {
@@ -1288,11 +1359,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    func chirp() {
-        guard on("sounds"), let s = NSSound(named: NSSound.Name("Tink")) else { return }
-        s.volume = 0.15
-        s.play()
-    }
+    func chirp() { Sfx.play(.speak, volume: 0.2) }
 
     func setTitle(_ s: String, hold: Double) {
         var s = s
@@ -1329,6 +1396,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func react(to a: Act) {
         guard (mode == .desk || mode == .docked), !isQuiet else { return }
+        if a == .jump { Sfx.play(.hop, volume: 0.2) }
         switch a {
         case .think: say(Words.spinnerLine())
         case .wave: say(Words.greetings.randomElement()!, hold: 1.6)
@@ -1342,7 +1410,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: dragging & touching
 
     func dragStarted() {
-        if mode == .organizing { return }
+        if mode == .organizing || mode == .flap { return }
+        if mode == .mood { cancelMood() }
         if mode == .game { endGame(early: true) }
         mode = .dragging
         inZone = false
@@ -1363,7 +1432,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func dragEnded() {
-        if mode == .organizing { return }
+        if mode == .organizing || mode == .flap { return }
         x = panel.frame.origin.x
         y = panel.frame.origin.y
         if inZone {
@@ -1378,7 +1447,9 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func poked() {
-        if mode == .game || mode == .organizing { return }
+        if mode == .flap { flap(); return }
+        if mode == .game || mode == .organizing || mode == .mood { return }
+        if dev.attentionUntil > 0 { clearAttention(); brain.start(.jump); say("On it!", hold: 2); return }
         if !shelf.urls.isEmpty && !shelf.isVisible {
             shelfHideAt = CACurrentMediaTime() + 10
             shelf.show()
@@ -1393,6 +1464,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func petted() {
         guard mode == .desk else { return }
         brain.start(.wave)
+        Sfx.play(.pet)
         say(["♥", "♥ ♥", "*purrs*", "*happy crab noises*", "Aww."].randomElement()!, hold: 2.2, typewriter: false)
     }
 
@@ -1411,6 +1483,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func icon(_ p: Pose) -> NSImage {
         var p = p
         p.hat = .none
+        p.weather = .none
+        p.night = false
         if let i = iconCache[p] { return i }
         let i = spriteImage(p, unit: 1.5)
         iconCache[p] = i
@@ -1488,7 +1562,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         upd.tag = 97
         upd.isHidden = latest == nil
         m.addItem(upd)
-        for tag in [99, 98] {
+        for tag in [99, 98, 95] {
             let status = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             status.tag = tag
             status.isEnabled = false
@@ -1521,6 +1595,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sub("Clipboard history", clip)
 
         m.addItem(.separator())
+        add("Screenshot to text   ⌃⌥T", #selector(screenshotToText))
         add("Pick a color   ⌃⌥C", #selector(pickColor))
         add("Ask Clawd: calc, convert…   ⌃⌥Space", #selector(askClawd))
         let pw = NSMenu()
@@ -1536,11 +1611,30 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add("Clear shelf", #selector(clearShelf), to: sh)
         sub("File shelf", sh)
 
+        let dv = NSMenu()
+        add("GitHub dashboard…   ⌃⌥G", #selector(toggleGitHub), to: dv)
+        let gitM = NSMenu(title: "Git buddy")
+        gitM.delegate = self
+        let gi = NSMenuItem(title: "Git buddy", action: nil, keyEquivalent: "")
+        gi.submenu = gitM
+        dv.addItem(gi)
+        let portsM = NSMenu(title: "Ports")
+        portsM.delegate = self
+        let pi = NSMenuItem(title: "Ports", action: nil, keyEquivalent: "")
+        pi.submenu = portsM
+        dv.addItem(pi)
+        dv.addItem(.separator())
+        add("Claude Code alerts (hook)…", #selector(toggleClaudeHook), to: dv)
+        sub("Dev tools", dv)
+        add("Set weather city…", #selector(setWeatherCity))
+
         m.addItem(.separator())
         let feats = NSMenu()
         for (title, key) in [("Break nudges (water, stretch)", "nudges"), ("Low battery warnings", "battery"),
                              ("Watch Claude Code", "claude"), ("Calendar heads-up", "calendar"),
-                             ("Climb on windows", "climb"), ("Sounds", "sounds"), ("Quiet mode", "quiet"),
+                             ("Climb on windows", "climb"), ("Sounds (8-bit)", "sounds"), ("Quiet mode", "quiet"),
+                             ("Weird moods", "moods"), ("Bedtime nudges", "bedtime"), ("Git nudges", "gitnudges"),
+                             ("GitHub alerts (CI, reviews)", "ghwatch"),
                              ("Check for updates daily", "updates")] {
             add(title, #selector(toggleDefault(_:)), to: feats, obj: key)
         }
@@ -1557,6 +1651,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add("Say something", #selector(chat))
         add("Dance!", #selector(danceNow))
         add(mode == .game ? "Stop game" : "Play: Token Catch", #selector(toggleGame))
+        add(mode == .flap ? "Stop Flappy" : "Play: Flappy Clawd", #selector(toggleFlap))
         if !docked { add("Climb a window", #selector(climbNow)) }
         m.addItem(.separator())
         add("Launch at login", #selector(toggleLogin))
@@ -1589,6 +1684,77 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 c.target = self
                 menu.addItem(c)
             }
+            return
+        }
+        if menu.title == "Git buddy" {
+            menu.removeAllItems()
+            if dev.repos.isEmpty {
+                let e = NSMenuItem(title: "No repos yet (give me a sec, or add one)", action: nil, keyEquivalent: "")
+                e.isEnabled = false
+                menu.addItem(e)
+            }
+            for path in dev.repos {
+                let st = dev.gitStatus[path]
+                var title = (path as NSString).lastPathComponent
+                if let st {
+                    var bits: [String] = []
+                    if st.dirty > 0 { bits.append("\(st.dirty) changed") }
+                    if st.ahead > 0 { bits.append("↑\(st.ahead)") }
+                    if st.behind > 0 { bits.append("↓\(st.behind)") }
+                    title = (bits.isEmpty ? "✓ " : "● ") + title + "  " + st.branch + (bits.isEmpty ? "" : "  " + bits.joined(separator: " "))
+                }
+                let it = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                let sm = NSMenu()
+                for (t, sel) in [("Reveal in Finder", #selector(repoReveal(_:))), ("Open in Terminal", #selector(repoTerminal(_:))),
+                                 ("Stop watching", #selector(repoRemove(_:)))] {
+                    let si = NSMenuItem(title: t, action: sel, keyEquivalent: "")
+                    si.target = self
+                    si.representedObject = path
+                    sm.addItem(si)
+                }
+                it.submenu = sm
+                menu.addItem(it)
+            }
+            menu.addItem(.separator())
+            for (t, sel) in [("Add repo…", #selector(addRepoPrompt)), ("Find my repos", #selector(findRepos))] {
+                let it = NSMenuItem(title: t, action: sel, keyEquivalent: "")
+                it.target = self
+                menu.addItem(it)
+            }
+            return
+        }
+        if menu.title == "Ports" {
+            menu.removeAllItems()
+            dev.listening = Dev.listeningPorts().filter { !Dev.noisy.contains($0.name) }
+            if dev.listening.isEmpty {
+                let e = NSMenuItem(title: "Nothing is listening right now", action: nil, keyEquivalent: "")
+                e.isEnabled = false
+                menu.addItem(e)
+            }
+            for l in dev.listening {
+                let watched = dev.watchedPorts.contains(l.port)
+                let it = NSMenuItem(title: "\(l.port) · \(l.name)" + (watched ? "  (watching)" : ""), action: nil, keyEquivalent: "")
+                let sm = NSMenu()
+                let a = NSMenuItem(title: "Open localhost:\(l.port)", action: #selector(portOpen(_:)), keyEquivalent: "")
+                a.target = self; a.representedObject = l.port
+                let b = NSMenuItem(title: watched ? "Stop watching" : "Watch this port", action: #selector(portWatch(_:)), keyEquivalent: "")
+                b.target = self; b.representedObject = l.port
+                let c = NSMenuItem(title: "Stop \(l.name)…", action: #selector(portStop(_:)), keyEquivalent: "")
+                c.target = self; c.representedObject = [l.port, l.pid]
+                sm.addItem(a); sm.addItem(b); sm.addItem(c)
+                it.submenu = sm
+                menu.addItem(it)
+            }
+            for w in dev.watchedPorts where !dev.listening.contains(where: { $0.port == w }) {
+                let it = NSMenuItem(title: "\(w) · down (watching)", action: #selector(portWatch(_:)), keyEquivalent: "")
+                it.target = self
+                it.representedObject = w
+                menu.addItem(it)
+            }
+            menu.addItem(.separator())
+            let it = NSMenuItem(title: "Watch a port…", action: #selector(watchPortPrompt), keyEquivalent: "")
+            it.target = self
+            menu.addItem(it)
             return
         }
         if menu.title == "Clipboard" {
@@ -1630,6 +1796,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 item.title = lines.isEmpty ? "Nothing scheduled" : lines.joined(separator: " · ")
             }
             if item.tag == 98 { item.title = statsLine() }
+            if item.tag == 95 { item.title = weatherSummary() }
             if item.tag == 96 { item.isHidden = UserDefaults.standard.data(forKey: "lastOrganize") == nil }
             if item.tag == 97 {
                 item.isHidden = latest == nil
@@ -1673,6 +1840,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let c = Calendar.current.dateComponents([.month, .day], from: Date())
         if c.month == 12 { return .santa }
         if c.month == 10 && (c.day ?? 0) >= 15 { return .pumpkin }
+        if isNight { return .nightcap }
         return .none
     }
 
@@ -1737,6 +1905,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func updateOverride() {
         let want: Act?
         if focusEnd != nil { want = .idle }
+        else if dev.attentionUntil > CACurrentMediaTime() { want = .wave }
         else if downloads > 0 { want = .work }
         else if userIdle { want = .sleep }
         else if claudeWorking && on("claude") { want = .work }
@@ -1837,7 +2006,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return noErr
         }, 1, &spec, nil, nil)
         let mods = UInt32(controlKey | optionKey)
-        for (i, key) in [kVK_ANSI_N, kVK_ANSI_C, kVK_Space, kVK_ANSI_P].enumerated() {
+        for (i, key) in [kVK_ANSI_N, kVK_ANSI_C, kVK_Space, kVK_ANSI_P, kVK_ANSI_T, kVK_ANSI_G].enumerated() {
             var ref: EventHotKeyRef?
             RegisterEventHotKey(UInt32(key), mods, EventHotKeyID(signature: OSType(0x434C5744), id: UInt32(i + 1)),
                                 GetApplicationEventTarget(), 0, &ref)
@@ -1849,6 +2018,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case 1: newNote()
         case 2: pickColor()
         case 3: askClawd()
+        case 5: screenshotToText()
+        case 6: toggleGitHub()
         default: generate(20)
         }
     }
@@ -2025,9 +2196,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func gameSound(_ name: String) {
-        guard on("sounds"), let s = NSSound(named: NSSound.Name(name)) else { return }
-        s.volume = 0.25
-        s.play()
+        Sfx.play(name == "Glass" ? .gem : (name == "Funk" ? .bug : .coin), volume: 0.25)
     }
 
     func endGame(early: Bool) {
@@ -2266,7 +2435,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Pops Clawd out of the menu bar if needed, then delivers the message; he goes back home afterwards.
     func alert(_ text: String, hold: Double = 9, sound: String? = "Glass") {
-        if let sound { NSSound(named: NSSound.Name(sound))?.play() }
+        if sound != nil { Sfx.play(.alert) }
         switch mode {
         case .docked:
             pendingAlert = text
@@ -2356,6 +2525,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             lowSince = nil
             if !claudeWorking {
                 claudeWorking = true
+                clearAttention()
                 workStart = now
                 lastWorkSay = 0
                 updateOverride()
@@ -2430,6 +2600,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let now = Date()
         let mono = CACurrentMediaTime()
         pollClipboard()
+        extraChecks(mono)
         if on("updates"), Date().timeIntervalSince1970 - UserDefaults.standard.double(forKey: "lastUpdateCheck") > 86400,
            mono - lastUpdateCheck > 600 {
             checkForUpdates(manual: false)
@@ -2597,13 +2768,15 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             view.pose = p
             if y <= floorY {
                 y = floorY
-                if vy < -500 { squashT = 0.2 }
+                if vy < -500 { squashT = 0.2; Sfx.play(.land, volume: 0.2) }
                 if vy < -1100 { say("Oof.", hold: 1.2) }
                 vy = 0
                 mode = .desk
                 brain.start(.idle, dur: 0.8)
                 updateOverride()
                 maybeShowPrompt()
+                if fl.pending { fl.pending = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.startFlap() } }
+                if pendingPanel { pendingPanel = false; DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.toggleGitHub() } }
                 if let f = pendingOrganize {
                     pendingOrganize = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.startOrganize(f, fromFinder: true) }
@@ -2620,6 +2793,12 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         case .organizing:
             orgTick(dt, now: now)
+
+        case .flap:
+            flapTick(dt, now: now)
+
+        case .mood:
+            moodTick(dt, now: now)
 
         case .hopping:
             hopT += dt
@@ -2639,7 +2818,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 mode = .desk
                 hopTarget = nil
                 brain.start(.idle, dur: 1)
-                if !isQuiet { say(["Nice view up here.", "King of the window!", "Don't mind me."].randomElement()!, hold: 2.5) }
+                if mood.pendingFort { mood.pendingFort = false; beginFort() }
+                else if !isQuiet { say(["Nice view up here.", "King of the window!", "Don't mind me."].randomElement()!, hold: 2.5) }
             }
 
         case .docking:
@@ -2663,6 +2843,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 brain.start(.idle, dur: 1)
                 setRate(12)
                 updateOverride()
+                Sfx.play(.dock)
                 setTitle("Home!", hold: 2)
                 verifyDocked(after: 0.8)
             }
@@ -2700,8 +2881,16 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         if mode != .docked && mode != .docking {
             var vp = view.pose
-            let hat = currentHat()
-            if vp.hat != hat { vp.hat = hat; view.pose = vp }
+            vp.hat = currentHat()
+            vp.weather = wx.kind
+            vp.night = isNight
+            vp.twinkle = Int(now * 2.5) % 4
+            if vp != view.pose { view.pose = vp }
+            if dev.ghPanel.isVisible {
+                dev.ghPanel.follow(anchor: panel.frame, screenFrame: screen.frame, topInset: max(screen.safeAreaInsets.top, 24))
+                if dev.ghPanel.panel.frame.contains(NSEvent.mouseLocation) { dev.ghHideAt = max(dev.ghHideAt, now + 4) }
+                if now > dev.ghHideAt { dev.ghPanel.hide() }
+            }
         }
 
         if trayUp {
@@ -2754,6 +2943,25 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
 let args = CommandLine.arguments
 
+if args.count >= 2 && args[1] == "--needs-you" {
+    var text = args.count >= 3 ? args[2] : ""
+    if text.isEmpty && isatty(0) == 0 {     // Claude Code hooks pipe a JSON payload on stdin
+        let data = FileHandle.standardInput.availableData
+        if let j = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any], let m = j["message"] as? String { text = m }
+    }
+    DistributedNotificationCenter.default().postNotificationName(needsNotification, object: nil,
+                                                                 userInfo: ["text": text], deliverImmediately: true)
+    RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+    exit(0)
+}
+
+if args.count >= 3 && args[1] == "--do" {
+    DistributedNotificationCenter.default().postNotificationName(doNotification, object: nil,
+                                                                 userInfo: ["what": args[2]], deliverImmediately: true)
+    RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+    exit(0)
+}
+
 if args.count >= 3 && args[1] == "--organize" {
     let path = URL(fileURLWithPath: (args[2] as NSString).expandingTildeInPath).standardizedFileURL.path
     DistributedNotificationCenter.default().postNotificationName(organizeNotification, object: nil,
@@ -2771,6 +2979,34 @@ if args.count >= 3 && args[1] == "--say" {
 
 if args.count >= 3 && args[1] == "--art" {
     renderArt(into: args[2])
+    exit(0)
+}
+
+if args.count >= 2 && args[1] == "--selftest2" {
+    // OCR
+    if args.count >= 3 { print("OCR:", OCR.recognize(URL(fileURLWithPath: args[2]))?.replacingOccurrences(of: "\n", with: " | ") ?? "nil") }
+    // ports
+    print("ports:", Dev.listeningPorts().map { "\($0.port)/\($0.name)" })
+    // git
+    if let g = Dev.gitStatus(FileManager.default.currentDirectoryPath) { print("git:", g.name, g.branch, "dirty", g.dirty, "ahead", g.ahead, "behind", g.behind) } else { print("git: nil") }
+    // gh
+    let (d, err) = Dev.fetchGitHub()
+    if let d { print("gh:", d.login, d.repos.map { "\($0.name) ★\($0.stars) PRs\($0.prs) \($0.ci)" }, "reviews", d.reviews.count) } else { print("gh error:", err ?? "?") }
+    // hook merge (pure, on a sample)
+    let sample: [String: Any] = ["model": "x", "hooks": ["Notification": [["matcher": "", "hooks": [["type": "command", "command": "echo hi"]]]], "Stop": [["hooks": [["type": "command", "command": "echo stop"]]]]]]
+    let m = ClaudeHook.merged(sample, command: ClaudeHook.command())
+    let back = ClaudeHook.removed(m)
+    print("hook: installed after merge:", ClaudeHook.isInstalled(m), "| removed restores original hooks:", NSDictionary(dictionary: back).isEqual(to: sample), "| original untouched keys:", (m["model"] as? String) ?? "")
+    // sounds
+    for k in Sfx.Kind.allCases { let w = Sfx.wav(k); if w.count < 100 || String(decoding: w.prefix(4), as: UTF8.self) != "RIFF" { print("BAD wav", k) } }
+    print("sfx: \(Sfx.Kind.allCases.count) sounds ok")
+    // weather geocode + fetch
+    let sem = DispatchSemaphore(value: 0)
+    URLSession.shared.dataTask(with: URL(string: "https://geocoding-api.open-meteo.com/v1/search?name=Manchester&count=1")!) { data, _, _ in
+        if let data, let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let r = (j["results"] as? [[String: Any]])?.first { print("geocode:", r["name"] ?? "", r["latitude"] ?? "", r["longitude"] ?? "") }
+        sem.signal()
+    }.resume()
+    _ = sem.wait(timeout: .now() + 15)
     exit(0)
 }
 

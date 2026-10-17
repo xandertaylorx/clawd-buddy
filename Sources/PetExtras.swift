@@ -136,6 +136,7 @@ extension Pet {
 
     var bubbleAnchor: NSRect {
         if mode == .organizing { return orgBubbleAnchor }
+        if mode == .flap { return fl.anchor }
         if trayUp && tray.isVisible { return tray.panel.frame }
         return panel.frame
     }
@@ -251,6 +252,7 @@ extension Pet {
                 if Organizer.perform(f.move, in: folder, log: &orgLog) != nil {
                     orgBins[f.bin]?.binView.count += 1
                     orgBins[f.bin]?.bounce = 10
+                    Sfx.play(.drop, volume: 0.15)
                 }
                 f.panel.orderOut(nil)
                 orgFlyPool.append(f.panel)
@@ -289,6 +291,7 @@ extension Pet {
         orgSilent = []
         if let data = try? JSONEncoder().encode(orgLog) { UserDefaults.standard.set(data, forKey: "lastOrganize") }
         orgFinished = true
+        Sfx.play(.fanfare)
         orgEndAt = now + 4.5
         let n = orgLog.entries.count
         let k = orgBinOrder.count
@@ -345,6 +348,7 @@ extension Pet {
             switch r {
             case .success(let url):
                 brain.start(.dance)
+                Sfx.play(.fanfare)
                 say("Saved “\(url.deletingPathExtension().lastPathComponent)”", hold: 6)
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             case .failure(let why):

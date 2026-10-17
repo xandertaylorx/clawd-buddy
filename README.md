@@ -105,6 +105,66 @@ Files are saved to `~/Downloads/Clawd` and revealed in Finder, with a progress r
 - **Spotify** tracks give MP3. Spotify's own audio is DRM-locked, so he reads the track's title and artist from its public page and fetches the matching audio from YouTube. Quality and the match can vary.
 - Only download things you have the right to keep. Check the terms of the services you use and your local copyright rules; this is a convenience wrapper and the responsibility is yours.
 
+## Claude Code companion
+
+Clawd watches for a busy `claude` process and tells you when a run finishes. For the moment Claude is **waiting on you** (a permission prompt, a question), add his hook: **Dev tools → Claude Code alerts (hook)…**. It merges a `Notification` hook into `~/.claude/settings.json` (backing it up first, and you can remove it the same way) that runs:
+
+```bash
+Clawd --needs-you          # reads Claude Code's message from stdin
+Clawd --needs-you "text"   # or pass your own
+```
+
+He then waves and bounces, repeating until you click him or Claude starts working again, popping out of the menu bar if he has to.
+
+## Dev tools
+
+<table>
+<tr>
+<td width="48%">
+
+**GitHub dashboard** (`⌃⌥G`). Your recent repos with CI status dots, stars, open PRs and how recently they were pushed, plus PRs **waiting for your review**. Click a row to open it. It uses the [`gh` CLI](https://cli.github.com), so there's no token to paste: if `gh auth login` works, so does this. Clawd also tells you when CI fails on one of your repos or a review is requested.
+
+**Git buddy.** Watches your local repos (he finds them for you, or add your own) and nudges you about uncommitted changes or unpushed commits after a while.
+
+**Port watcher.** Lists what's listening on your machine (dev servers, databases) with *Open*, *Watch* and *Stop*. Watch a port and he tells you the moment it goes down or comes back.
+
+</td>
+<td width="52%">
+<img src="docs/github.png" alt="The GitHub dashboard panel above Clawd">
+</td>
+</tr>
+</table>
+
+## Weather, day and night
+
+Set a city in his menu (it uses [Open-Meteo](https://open-meteo.com), no account) and he dresses for it:
+
+<div align="center">
+<img src="docs/accessories.png" width="640" alt="Clawd with an umbrella in the rain, snow on his head, sunglasses when hot, a scarf when cold, and a nightcap with stars at night">
+</div>
+
+He greets you in the morning, wears a nightcap with twinkling stars after 9pm, and nudges you at bedtime (23:30, and again after midnight). Both toggle under Features.
+
+## Flappy Clawd
+
+A second mini-game: click (or press space) to flap Clawd through the pipes. The screen dims slightly while you play, `Esc` quits, and your best score is saved.
+
+<div align="center">
+<img src="docs/flap.gif" width="640" alt="Clawd flapping through green pipes">
+</div>
+
+## Weird moods
+
+Every few minutes, if you're not busy, something odd might happen: he builds **a tiny fort on top of one of your windows**, hides off the edge of the screen and **peeks back at you** (get too close and he jumps out with a "Boo!"), sneezes, or turns into a ghost. Switch them off under Features → Weird moods.
+
+<div align="center">
+<img src="docs/moods.png" width="640" alt="Clawd's fort on a window, and peeking over the edge of the screen">
+</div>
+
+## Sounds
+
+Everything makes a soft 8-bit blip: speaking, hopping, catching tokens, flapping, sorting files, alerts. They're synthesised on the fly (no audio files), kept quiet, and **Sounds (8-bit)** under Features mutes the lot.
+
 ## Little tools
 
 | Tool | How |
@@ -113,6 +173,8 @@ Files are saved to `~/Downloads/Clawd` and revealed in Finder, with a progress r
 | **Ask Clawd**, a calculator that also converts units and currency: `15% of 240`, `5 ft in cm`, `72 f in c`, `40 usd to eur`, `(3+4)*2^2`, `time in tokyo` | `⌃⌥Space` |
 | **Password generator** (12 / 20 / 32 characters or a PIN). Copied to the clipboard, kept out of clipboard history, and cleared after 45 seconds. | `⌃⌥P` |
 | **Quick notes**, jot something down; click a note later to copy it. | `⌃⌥N` |
+| **Screenshot to text (OCR)**, drag a box around anything on screen and the text lands on your clipboard. Reads it on-device with Apple's Vision framework. macOS asks for Screen Recording permission the first time. | `⌃⌥T` |
+| **GitHub dashboard** | `⌃⌥G` |
 
 Also in the menu: reminders, an in-memory clipboard history (off by default, skips passwords), calendar heads-ups, and break nudges (water, stretch, posture).
 
@@ -172,7 +234,7 @@ Updates come from the `Clawd.zip` on this repo's latest [release](https://github
 
 ## Good to know
 
-- **Privacy.** Everything runs locally. The only network requests are the currency rate lookup for `Ask Clawd` (to `open.er-api.com`), the daily update check (to `api.github.com`), and downloads you ask for (YouTube / Spotify's public track page). No accounts, and nothing about you is sent. The clipboard history lives in memory only. Nothing is uploaded.
+- **Privacy.** Everything runs locally. The only network requests are the currency rate lookup for `Ask Clawd` (to `open.er-api.com`), the daily update check (to `api.github.com`), the weather lookup (`open-meteo.com`, only if you set a city), the `gh` CLI for the GitHub dashboard (only if you open it or leave the alerts on), and downloads you ask for (YouTube / Spotify's public track page). No accounts, and nothing about you is sent. The clipboard history lives in memory only. Nothing is uploaded.
 - **Permissions.** Calendar heads-ups are off until you turn them on, which triggers the normal macOS Calendar prompt.
 - **Quiet mode.** One toggle silences his chatter. It switches on by itself during Zoom meetings and while a focus timer runs.
 - **Launch at login** is in his menu.
@@ -188,6 +250,12 @@ Sources/main.swift   the app: sprite, behavior, menus, tools
 Sources/Organizer.swift   folder organiser, Finder bridge, animation pieces
 Sources/Downloader.swift  link → MP3/MP4 via yt-dlp
 Sources/PetExtras.swift   drop tray logic, organise animation, downloads
+Sources/Dev.swift         ports, git buddy, GitHub dashboard, Claude Code hook
+Sources/Weather.swift     weather, day/night
+Sources/Flappy.swift      Flappy Clawd
+Sources/Moods.swift       fort, peek-a-boo, sneeze, ghost
+Sources/Sfx.swift         8-bit sound synth
+Sources/OCR.swift         screenshot to text
 Sources/Art.swift    renders the README visuals
 build.sh             compiles, makes the icon, bundles Clawd.app
 VERSION              the version number baked into the app
