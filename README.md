@@ -44,7 +44,7 @@ Drag him up to the menu bar and let go. He shrinks into a status item and carrie
 <img src="docs/menubar.png" width="640" alt="Clawd in the menu bar, idle, talking, and as a timer">
 </div>
 
-He **stays put**: reminders, timers and alerts show up as a little bubble hanging under his icon (and he animates and plays a blip), without pulling him out of the menu bar. If you'd rather he hop out to tell you, switch on **Pop out of the menu bar for alerts** under Features.
+He **stays put**: reminders, timers and alerts show up as a little bubble hanging under his icon (and he animates and plays a blip), without pulling him out of the menu bar. If you'd rather he hop out to tell you, switch on **Pop out of the menu bar for alerts** in Settings.
 
 He's notch-aware: if macOS doesn't have room for his icon (a crowded menu bar next to the notch), he notices, hops back out and tells you instead of silently disappearing.
 
@@ -147,7 +147,7 @@ Set a city in his menu (it uses [Open-Meteo](https://open-meteo.com), no account
 <img src="docs/accessories.png" width="640" alt="Clawd with an umbrella in the rain, snow on his head, sunglasses when hot, a scarf when cold, and a nightcap with stars at night">
 </div>
 
-He greets you in the morning, wears a nightcap with twinkling stars after 9pm, and nudges you at bedtime (23:30, and again after midnight). Both toggle under Features.
+He greets you in the morning, wears a nightcap with twinkling stars after 9pm, and nudges you at bedtime (23:30, and again after midnight). Both toggle in Settings.
 
 ## Flappy Clawd
 
@@ -175,7 +175,7 @@ Pick **Play: Basketball** and he rolls into a ball while a hoop pops up on the e
 
 ## Weird moods
 
-Every few minutes, if you're not busy, something odd might happen: he builds **a tiny fort on top of one of your windows**, hides off the edge of the screen and **peeks back at you** (get too close and he jumps out with a "Boo!"), sneezes, or turns into a ghost. Switch them off under Features → Weird moods. Every item in the Features menu shows a tick when it's on, and he confirms each change.
+Every few minutes, if you're not busy, something odd might happen: he builds **a tiny fort on top of one of your windows**, hides off the edge of the screen and **peeks back at you** (get too close and he jumps out with a "Boo!"), sneezes, or turns into a ghost. Switch them off in Settings → Fun & look. Every switch lives in the **Settings** window (right-click him → Settings…), grouped into tabs, with its state always visible.
 
 <div align="center">
 <img src="docs/moods.png" width="640" alt="Clawd's fort on a window, and peeking over the edge of the screen">
@@ -183,7 +183,7 @@ Every few minutes, if you're not busy, something odd might happen: he builds **a
 
 ## Sounds
 
-Everything makes a soft 8-bit blip: speaking, hopping, catching tokens, flapping, sorting files, alerts. They're synthesised on the fly (no audio files), kept quiet, and **Sounds (8-bit)** under Features mutes the lot.
+Everything makes a soft 8-bit blip: speaking, hopping, catching tokens, flapping, sorting files, alerts. They're synthesised on the fly (no audio files), kept quiet, and **Sounds** in Settings mutes the lot.
 
 ## Little tools
 
@@ -248,7 +248,7 @@ Clawd checks this repo's latest release once a day. When a newer version is out 
 
 </div>
 
-No manual download. He verifies the download is really Clawd before installing, and if he can't update himself (for example, he's in a folder he can't write to) he opens the release page instead. **Check for updates…** is in the menu too, and **Check for updates daily** under Features turns the automatic check off.
+No manual download. He verifies the download is really Clawd before installing, and if he can't update himself (for example, he's in a folder he can't write to) he opens the release page instead. **Check for updates…** is in the menu too, and **Check for updates daily** in Settings turns the automatic check off.
 
 Updates come from the `Clawd.zip` on this repo's latest [release](https://github.com/xandertaylorx/clawd-buddy/releases), so you're trusting this repo, the same as when you first downloaded him. The build isn't notarized (no paid Apple Developer ID yet), so the very first launch of a fresh download still needs right-click → **Open**. Self-updates don't repeat that. If you're upgrading from v1.1.0, download v1.2.0 by hand once; it's the first version that can update itself.
 

@@ -1238,6 +1238,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var pendingFolder: URL?
     var pendingOrganize: URL?
     var pendingPanel = false
+    var settingsWindow: NSWindow?
     var statusPress: CGPoint?        // mouse went down on his menu bar icon here
     var menuDrag = false             // he's being carried out of the menu bar
     var menuDragFresh = false        // ...and the cursor hasn't left the menu bar zone yet
@@ -1334,18 +1335,20 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "github": self.toggleGitHub()
             case "ocr": self.screenshotToText()
             case "needs": self.needsYou("Claude needs you!")
-            case "menutest":   // test helper: report what the Features menu would show
-                let menu = self.buildMenu(docked: false)
-                var report: [String] = []
-                for top in menu.items {
-                    guard top.title == "Features", let sub = top.submenu else { continue }
-                    self.menuNeedsUpdate(sub)
-                    report = sub.items.map { "\($0.title)=\($0.state == .on ? "ON" : "off")" }
+            case "menutest":   // test helper: dump the menu structure
+                func dump(_ m: NSMenu, _ depth: Int) -> [String] {
+                    var out: [String] = []
+                    for i in m.items {
+                        if i.isSeparatorItem { continue }
+                        out.append(String(repeating: "  ", count: depth) + i.title + (i.isHidden ? " [hidden]" : "") + (i.state == .on ? " ✓" : ""))
+                        if let sm = i.submenu { out += dump(sm, depth + 1) }
+                    }
+                    return out
                 }
-                UserDefaults.standard.set(report.joined(separator: "; "), forKey: "menuTestReport")
-            case "statusframe":   // test helper
-                let f = self.statusItem?.button?.window?.frame
-                UserDefaults.standard.set("\(String(describing: f)) screen=\(String(describing: self.statusItem?.button?.window?.screen?.frame)) hidden=\(self.hiddenByNotch()) mode=\(self.mode)", forKey: "statusFrameReport")
+                let desk = self.buildMenu(docked: false), docked = self.buildMenu(docked: true)
+                let top = { (m: NSMenu) in m.items.filter { !$0.isSeparatorItem && !$0.isHidden }.count }
+                let text = "DESKTOP menu: \(top(desk)) top-level items\n" + dump(desk, 1).joined(separator: "\n") + "\n\nDOCKED menu: \(top(docked)) top-level items\n" + dump(docked, 1).filter { !$0.hasPrefix("    ") }.joined(separator: "\n")
+                try? text.write(toFile: "/tmp/clawd-menu.txt", atomically: true, encoding: .utf8)
             case "weather": self.fetchWeather(announce: true)
             case "ball": self.startBall()
             case "hoops": self.startHoops()
@@ -1690,115 +1693,93 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             (menu ?? m).addItem(i)
             return i
         }
-        func sub(_ title: String, _ menu: NSMenu) {
+        func sub(_ title: String, _ menu: NSMenu, in parent: NSMenu? = nil) {
             let i = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             i.submenu = menu
-            m.addItem(i)
+            (parent ?? m).addItem(i)
         }
+        func dynamic(_ title: String, menuTitle: String, in parent: NSMenu) {
+            let d = NSMenu(title: menuTitle)
+            d.delegate = self
+            sub(title, d, in: parent)
+        }
+
+        // the headline: an update, and one status line
         let upd = NSMenuItem(title: "", action: #selector(openUpdate), keyEquivalent: "")
         upd.target = self
         upd.tag = 97
         upd.isHidden = latest == nil
         m.addItem(upd)
-        for tag in [99, 98, 95] {
-            let status = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-            status.tag = tag
-            status.isEnabled = false
-            m.addItem(status)
-        }
+        let status = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        status.tag = 99
+        status.isEnabled = false
+        m.addItem(status)
         m.addItem(.separator())
 
-        let focus = NSMenu()
-        add("Focus 25 min", #selector(startTimer(_:)), to: focus, tag: 25, obj: "focus")
-        add("Focus 50 min", #selector(startTimer(_:)), to: focus, tag: 50, obj: "focus")
-        add("Break 5 min", #selector(startTimer(_:)), to: focus, tag: 5, obj: "break")
-        add("Break 15 min", #selector(startTimer(_:)), to: focus, tag: 15, obj: "break")
-        focus.addItem(.separator())
-        add("Stop timer", #selector(stopTimer), to: focus)
-        sub("Focus timer", focus)
-
-        let rem = NSMenu()
+        // Timers & reminders
+        let tm = NSMenu()
+        add("Focus 25 min", #selector(startTimer(_:)), to: tm, tag: 25, obj: "focus")
+        add("Focus 50 min", #selector(startTimer(_:)), to: tm, tag: 50, obj: "focus")
+        add("Break 5 min", #selector(startTimer(_:)), to: tm, tag: 5, obj: "break")
+        add("Break 15 min", #selector(startTimer(_:)), to: tm, tag: 15, obj: "break")
+        if focusEnd != nil { tm.addItem(.separator()); add("Stop timer", #selector(stopTimer), to: tm) }
+        tm.addItem(.separator())
         for mins in [5, 15, 30, 60] {
-            add(mins == 60 ? "In 1 hour" : "In \(mins) minutes", #selector(quickReminder(_:)), to: rem, tag: mins)
+            add("Remind me " + (mins == 60 ? "in 1 hour" : "in \(mins) min"), #selector(quickReminder(_:)), to: tm, tag: mins)
         }
-        rem.addItem(.separator())
-        add("Custom…", #selector(customReminder), to: rem)
-        sub("Remind me", rem)
+        add("Remind me…", #selector(customReminder), to: tm)
+        sub("Timers & reminders", tm)
 
-        let notesMenu = NSMenu(title: "Notes")
-        notesMenu.delegate = self
-        sub("Notes", notesMenu)
-        let clip = NSMenu(title: "Clipboard")
-        clip.delegate = self
-        sub("Clipboard history", clip)
-
-        m.addItem(.separator())
-        add("Screenshot to text   ⌃⌥T", #selector(screenshotToText))
-        add("Pick a color   ⌃⌥C", #selector(pickColor))
-        add("Ask Clawd: calc, convert…   ⌃⌥Space", #selector(askClawd))
+        // Tools
+        let tools = NSMenu()
+        add("Screenshot to text   ⌃⌥T", #selector(screenshotToText), to: tools)
+        add("Pick a colour   ⌃⌥C", #selector(pickColor), to: tools)
+        add("Ask Clawd: calc, convert…   ⌃⌥Space", #selector(askClawd), to: tools)
         let pw = NSMenu()
         add("Strong · 20 characters", #selector(makePassword(_:)), to: pw, tag: 20)
         add("Long · 32 characters", #selector(makePassword(_:)), to: pw, tag: 32)
         add("Short · 12 characters", #selector(makePassword(_:)), to: pw, tag: 12)
         add("PIN · 6 digits", #selector(makePassword(_:)), to: pw, tag: -6)
-        sub("Generate password   ⌃⌥P", pw)
+        sub("Generate password   ⌃⌥P", pw, in: tools)
+        tools.addItem(.separator())
+        dynamic("Notes", menuTitle: "Notes", in: tools)
+        dynamic("Clipboard history", menuTitle: "Clipboard", in: tools)
         let sh = NSMenu()
-        let undoItem = add("Undo last organise", #selector(undoOrganize))
-        undoItem.tag = 96
         add("Show shelf", #selector(showShelf), to: sh)
         add("Clear shelf", #selector(clearShelf), to: sh)
-        sub("File shelf", sh)
+        sub("File shelf", sh, in: tools)
+        if UserDefaults.standard.data(forKey: "lastOrganize") != nil { add("Undo last organise", #selector(undoOrganize), to: tools) }
+        sub("Tools", tools)
 
+        // Play (some of it only makes sense on the desktop)
+        let play = NSMenu()
+        add(mode == .game ? "Stop Token Catch" : "Token Catch", #selector(toggleGame), to: play)
+        add(mode == .flap ? "Stop Flappy" : "Flappy Clawd", #selector(toggleFlap), to: play)
+        add(hoop.active ? "Stop basketball" : "Basketball", #selector(toggleHoops), to: play)
+        let ballItem = add("Physics ball", #selector(toggleBall), to: play)
+        ballItem.state = mode == .ball ? .on : .off
+        play.addItem(.separator())
+        add("Say something", #selector(chat), to: play)
+        if !docked { add("Dance!", #selector(danceNow), to: play); add("Climb a window", #selector(climbNow), to: play) }
+        sub("Play", play)
+
+        // Dev tools
         let dv = NSMenu()
         add("GitHub dashboard…   ⌃⌥G", #selector(toggleGitHub), to: dv)
-        let gitM = NSMenu(title: "Git buddy")
-        gitM.delegate = self
-        let gi = NSMenuItem(title: "Git buddy", action: nil, keyEquivalent: "")
-        gi.submenu = gitM
-        dv.addItem(gi)
-        let portsM = NSMenu(title: "Ports")
-        portsM.delegate = self
-        let pi = NSMenuItem(title: "Ports", action: nil, keyEquivalent: "")
-        pi.submenu = portsM
-        dv.addItem(pi)
+        dynamic("Git buddy", menuTitle: "Git buddy", in: dv)
+        dynamic("Ports", menuTitle: "Ports", in: dv)
         dv.addItem(.separator())
         add("Claude Code alerts (hook)…", #selector(toggleClaudeHook), to: dv)
         sub("Dev tools", dv)
-        add("Set weather city…", #selector(setWeatherCity))
+
+        let quiet = add("Quiet mode", #selector(toggleDefault(_:)), obj: "quiet")
+        quiet.state = on("quiet") ? .on : .off
 
         m.addItem(.separator())
-        let feats = NSMenu()
-        feats.delegate = self
-        for (title, key) in [("Break nudges (water, stretch)", "nudges"), ("Low battery warnings", "battery"),
-                             ("Watch Claude Code", "claude"), ("Calendar heads-up", "calendar"),
-                             ("Climb on windows", "climb"), ("Sounds (8-bit)", "sounds"), ("Quiet mode", "quiet"),
-                             ("Weird moods", "moods"), ("Bedtime nudges", "bedtime"), ("Git nudges", "gitnudges"),
-                             ("GitHub alerts (CI, reviews)", "ghwatch"),
-                             ("Pop out of the menu bar for alerts", "popout"),
-                             ("Check for updates daily", "updates")] {
-            add(title, #selector(toggleDefault(_:)), to: feats, obj: key)
-        }
-        sub("Features", feats)
-        let outfit = NSMenu()
-        outfit.delegate = self
-        for (title, key) in [("Auto (seasonal)", "auto"), ("None", "none"), ("Party hat", "party"), ("Santa hat", "santa"),
-                             ("Wizard hat", "wizard"), ("Crown", "crown"), ("Pumpkin", "pumpkin")] {
-            add(title, #selector(setOutfit(_:)), to: outfit, obj: key)
-        }
-        sub("Outfit", outfit)
-
-        m.addItem(.separator())
+        let settings = add("Settings…", #selector(openSettings))
+        settings.keyEquivalent = ","
         if docked { add("Let Clawd out", #selector(undock)) } else { add("Move into menu bar", #selector(menuDock)) }
-        add("Say something", #selector(chat))
-        add("Dance!", #selector(danceNow))
-        add(mode == .game ? "Stop game" : "Play: Token Catch", #selector(toggleGame))
-        add(mode == .flap ? "Stop Flappy" : "Play: Flappy Clawd", #selector(toggleFlap))
-        add("Physics ball", #selector(toggleBall), tag: 94)
-        add(hoop.active ? "Stop basketball" : "Play: Basketball", #selector(toggleHoops))
-        if !docked { add("Climb a window", #selector(climbNow)) }
         m.addItem(.separator())
-        add("Launch at login", #selector(toggleLogin))
-        add("Check for updates…", #selector(manualUpdateCheck))
         add("Quit Clawd", #selector(quit))
         return m
     }
@@ -1945,9 +1926,10 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 var lines: [String] = []
                 if let end = focusEnd { lines.append("\(focusIsBreak ? "Break" : "Focus"): \(clock(end)) left") }
                 if let r = reminders.min(by: { $0.fire < $1.fire }) {
-                    lines.append("Next reminder in \(max(1, Int(r.fire.timeIntervalSinceNow / 60) + 1)) min")
+                    lines.append("Reminder in \(max(1, Int(r.fire.timeIntervalSinceNow / 60) + 1)) min")
                 }
                 if claudeWorking { lines.append("Claude Code is working") }
+                if downloads > 0 { lines.append("Downloading") }
                 item.title = lines.isEmpty ? "Nothing scheduled" : lines.joined(separator: " · ")
             }
             if item.tag == 98 { item.title = statsLine() }
@@ -1980,10 +1962,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func toggleDefault(_ item: NSMenuItem) {
         guard let k = item.representedObject as? String else { return }
-        UserDefaults.standard.set(!on(k), forKey: k)
+        setToggle(k, !on(k))
         say("\(item.title): \(on(k) ? "on" : "off")", hold: 1.8, typewriter: false)
-        if k == "calendar" && on(k) { enableCalendar() }
-        if k == "clipboard" && !on(k) { clipboard.removeAll() }
     }
 
     @objc func setOutfit(_ item: NSMenuItem) {
