@@ -1238,6 +1238,9 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var pendingFolder: URL?
     var pendingOrganize: URL?
     var pendingPanel = false
+    var statusPress: CGPoint?        // mouse went down on his menu bar icon here
+    var menuDrag = false             // he's being carried out of the menu bar
+    var menuDragFresh = false        // ...and the cursor hasn't left the menu bar zone yet
     let dev = DevState()
     let wx = WeatherState()
     let fl = FlapState()
@@ -1340,6 +1343,9 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     report = sub.items.map { "\($0.title)=\($0.state == .on ? "ON" : "off")" }
                 }
                 UserDefaults.standard.set(report.joined(separator: "; "), forKey: "menuTestReport")
+            case "statusframe":   // test helper
+                let f = self.statusItem?.button?.window?.frame
+                UserDefaults.standard.set("\(String(describing: f)) screen=\(String(describing: self.statusItem?.button?.window?.screen?.frame)) hidden=\(self.hiddenByNotch()) mode=\(self.mode)", forKey: "statusFrameReport")
             case "weather": self.fetchWeather(announce: true)
             case "ball": self.startBall()
             case "hoops": self.startHoops()
@@ -1442,11 +1448,12 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// True when the status item has no visible spot (pushed under the notch / off the bar).
     func hiddenByNotch() -> Bool {
         guard statusItem != nil else { return false }
+        // No window at all (or a zero-width one) is what macOS gives an icon it had no room for.
+        // (Don't ask the window about occlusion: for menu bar icons macOS reports "occluded" even when they're plainly visible.)
         guard let w = statusItem?.button?.window, w.frame.width > 0 else { return true }
-        if !w.isVisible || !w.occlusionState.contains(.visible) { return true }
         guard let scr = w.screen ?? NSScreen.main else { return true }
-        if w.frame.maxY < scr.frame.maxY - 60 { return true }
-        if scr.safeAreaInsets.top > 0, let r = scr.auxiliaryTopRightArea, w.frame.minX < r.minX { return true }
+        if w.frame.maxY < scr.frame.maxY - 60 { return true }                       // not up in the menu bar
+        if scr.safeAreaInsets.top > 0, let r = scr.auxiliaryTopRightArea, w.frame.minX < r.minX { return true }   // left of the notch's right edge
         return false
     }
 
@@ -1501,6 +1508,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let m = NSEvent.mouseLocation
         let scr = NSScreen.screens.first { $0.frame.contains(m) } ?? NSScreen.main ?? NSScreen.screens[0]
         let zone = m.y > scr.frame.maxY - max(46, scr.safeAreaInsets.top + 24)
+        if menuDragFresh { if !zone { menuDragFresh = false }; return }   // ignore the bar until he's been carried out of it
         if zone != inZone {
             inZone = zone
             if zone { bubble.show("The menu bar? Let go!", hold: 60) } else { bubble.hide() }
@@ -1510,6 +1518,14 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func dragEnded() {
         if mode == .ball { releaseBall(); return }
         if mode == .organizing || mode == .flap { return }
+        if menuDragFresh {            // let go without leaving the menu bar: put him back
+            menuDragFresh = false
+            x = panel.frame.origin.x
+            y = panel.frame.origin.y
+            inZone = false
+            dock()
+            return
+        }
         x = panel.frame.origin.x
         y = panel.frame.origin.y
         if inZone {
@@ -1553,12 +1569,50 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: docking into the menu bar
 
+    /// Mouse down on his icon: a click opens the menu, a drag picks him up and carries him out of the menu bar.
+    @objc func statusPressed(_ sender: Any?) {
+        guard mode == .docked else { return }
+        let e = NSApp.currentEvent
+        if e?.type == .rightMouseDown || e?.modifierFlags.contains(.control) == true { showStatusMenu(); return }
+        statusPress = NSEvent.mouseLocation
+        setRate(30)
+    }
+
+    func showStatusMenu() {
+        guard mode == .docked, let f = statusItem?.button?.window?.frame else { return }
+        buildMenu(docked: true).popUp(positioning: nil, at: NSPoint(x: f.minX, y: f.minY - 2), in: nil)
+        if mode == .docked { setRate(12) }
+    }
+
+    func pickUpFromMenuBar() {
+        guard mode == .docked else { return }
+        let m = NSEvent.mouseLocation
+        bubble.hide()
+        if let item = statusItem { NSStatusBar.system.removeStatusItem(item) }
+        statusItem = nil
+        UserDefaults.standard.set(false, forKey: "docked")
+        view.scale = 1
+        panel.alphaValue = 1
+        x = m.x - Pet.size.width / 2
+        y = m.y - 50
+        panel.setFrameOrigin(CGPoint(x: x, y: y))
+        panel.orderFrontRegardless()
+        setRate(30)
+        brain.start(.idle, dur: 1)
+        dragStarted()                 // mode = .dragging
+        menuDrag = true
+        menuDragFresh = true
+        Sfx.play(.whoosh, volume: 0.2)
+    }
+
     func makeStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.imagePosition = .imageLeft
         item.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
         item.button?.image = icon(Pose())
-        item.menu = buildMenu(docked: true)
+        item.button?.target = self
+        item.button?.action = #selector(statusPressed(_:))
+        item.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
         statusItem = item
         lastIconPose = nil
     }
@@ -2522,7 +2576,6 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     .first { ($0["name"] as? String) == "Clawd.zip" }?["browser_download_url"] as? String
                 if self.isNewer(v, than: self.appVersion) {
                     self.latest = (v, page, asset)
-                    self.statusItem?.menu = self.buildMenu(docked: true)
                     if manual || UserDefaults.standard.string(forKey: "notifiedVersion") != v {
                         UserDefaults.standard.set(v, forKey: "notifiedVersion")
                         self.alert("Clawd v\(v) is out! Open my menu and click Update.", hold: 8, sound: "Pop")
@@ -2853,6 +2906,16 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             sleepZs()
 
         case .dragging:
+            if menuDrag {
+                let m = NSEvent.mouseLocation
+                if NSEvent.pressedMouseButtons & 1 != 0 {
+                    panel.setFrameOrigin(CGPoint(x: m.x - Pet.size.width / 2, y: m.y - 50))
+                    dragMoved()
+                } else {
+                    menuDrag = false
+                    dragEnded()
+                }
+            }
             dragT += dt
             x = panel.frame.origin.x
             y = panel.frame.origin.y
@@ -2972,6 +3035,18 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
 
         case .docked:
+            if let start = statusPress {
+                let m = NSEvent.mouseLocation
+                if NSEvent.pressedMouseButtons & 1 == 0 {            // released without dragging: it was a click
+                    statusPress = nil
+                    showStatusMenu()
+                    return
+                } else if hypot(m.x - start.x, m.y - start.y) > 6 {   // dragged: pick him up
+                    statusPress = nil
+                    pickUpFromMenuBar()
+                    return
+                }
+            }
             brain.update(dt)
             var p = brain.pose
             if brain.jumpY > 10 { p.bob = 1 }
