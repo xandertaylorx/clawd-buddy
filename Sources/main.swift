@@ -1081,7 +1081,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var perchLeaveAt = 0.0
 
     // updates
-    var latest: (version: String, url: String)?
+    var latest: (version: String, url: String, asset: String?)?
+    var updating = false
     var lastUpdateCheck = 0.0
     let repoAPI = "https://api.github.com/repos/xandertaylorx/clawd-buddy/releases/latest"
     var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
@@ -1171,6 +1172,15 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         registerHotKey()
         if on("calendar") { enableCalendar() }
+        if let v = UserDefaults.standard.string(forKey: "justUpdated") {
+            UserDefaults.standard.removeObject(forKey: "justUpdated")
+            if v == appVersion {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                    self?.brain.start(.dance)
+                    self?.say("Updated to v\(v)! ✨", hold: 4)
+                }
+            }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 25) { [weak self] in
             if self?.on("updates") == true { self?.checkForUpdates(manual: false) }
         }
@@ -1557,7 +1567,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if item.tag == 98 { item.title = statsLine() }
             if item.tag == 97 {
                 item.isHidden = latest == nil
-                if let l = latest { item.title = "⬆ Update to v\(l.version)…" }
+                if let l = latest { item.title = "⬆ Update to v\(l.version) (installs & restarts)" }
             }
         }
     }
@@ -2095,8 +2105,80 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func manualUpdateCheck() { checkForUpdates(manual: true) }
 
-    @objc func openUpdate() {
+    func openReleasePage() {
         if let u = latest?.url, let url = URL(string: u) { NSWorkspace.shared.open(url) }
+    }
+
+    @objc func openUpdate() { installUpdate() }
+
+    /// Downloads Clawd.zip from the release, checks it's really Clawd, swaps it in after we quit, and relaunches.
+    func installUpdate() {
+        guard let l = latest, !updating else { return }
+        let appURL = Bundle.main.bundleURL
+        guard let asset = l.asset, let url = URL(string: asset),
+              FileManager.default.isWritableFile(atPath: appURL.deletingLastPathComponent().path) else {
+            say("I can't update myself here, so I'm opening the download page.", hold: 4)
+            openReleasePage()
+            return
+        }
+        updating = true
+        say("Downloading v\(l.version)…", hold: 60)
+        brain.start(.work)
+        let myID = Bundle.main.bundleIdentifier
+        URLSession.shared.downloadTask(with: url) { [weak self] tmp, resp, err in
+            func fail(_ why: String) {
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.updating = false
+                    self.brain.start(.idle)
+                    self.say("Update failed (\(why)). Opening the download page.", hold: 5)
+                    self.openReleasePage()
+                }
+            }
+            guard let tmp, err == nil, (resp as? HTTPURLResponse)?.statusCode == 200 else { return fail("download") }
+            let fm = FileManager.default
+            let work = fm.temporaryDirectory.appendingPathComponent("clawd-update-\(UUID().uuidString)")
+            let zip = work.appendingPathComponent("Clawd.zip")
+            let out = work.appendingPathComponent("out")
+            do {
+                try fm.createDirectory(at: out, withIntermediateDirectories: true)
+                try fm.moveItem(at: tmp, to: zip)
+            } catch { return fail("disk") }
+            let unzip = Process()
+            unzip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            unzip.arguments = ["-x", "-k", zip.path, out.path]
+            guard (try? unzip.run()) != nil else { return fail("unzip") }
+            unzip.waitUntilExit()
+            let newApp = out.appendingPathComponent("Clawd.app")
+            guard unzip.terminationStatus == 0, let b = Bundle(url: newApp),
+                  b.bundleIdentifier == myID,
+                  fm.fileExists(atPath: newApp.appendingPathComponent("Contents/MacOS/Clawd").path),
+                  let v = b.infoDictionary?["CFBundleShortVersionString"] as? String else { return fail("bad download") }
+            let script = work.appendingPathComponent("update.sh")
+            let body = """
+            #!/bin/sh
+            PID="$1"; OLD="$2"; NEW="$3"
+            while kill -0 "$PID" 2>/dev/null; do sleep 0.2; done
+            xattr -dr com.apple.quarantine "$NEW" 2>/dev/null
+            BAK="$OLD.old"
+            rm -rf "$BAK"
+            if mv "$OLD" "$BAK" && mv "$NEW" "$OLD"; then rm -rf "$BAK"; else [ -d "$BAK" ] && [ ! -d "$OLD" ] && mv "$BAK" "$OLD"; fi
+            open "$OLD"
+            """
+            do { try body.write(to: script, atomically: true, encoding: .utf8) } catch { return fail("script") }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/bin/sh")
+                p.arguments = [script.path, String(ProcessInfo.processInfo.processIdentifier), appURL.path, newApp.path]
+                p.standardOutput = FileHandle.nullDevice
+                p.standardError = FileHandle.nullDevice
+                guard (try? p.run()) != nil else { self.updating = false; return }
+                UserDefaults.standard.set(v, forKey: "justUpdated")
+                self.say("Installing v\(v)… brb!", hold: 5)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { NSApp.terminate(nil) }
+            }
+        }.resume()
     }
 
     func checkForUpdates(manual: Bool) {
@@ -2117,12 +2199,14 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
                 let v = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
                 let page = j["html_url"] as? String ?? "https://github.com/xandertaylorx/clawd-buddy/releases"
+                let asset = (j["assets"] as? [[String: Any]])?
+                    .first { ($0["name"] as? String) == "Clawd.zip" }?["browser_download_url"] as? String
                 if self.isNewer(v, than: self.appVersion) {
-                    self.latest = (v, page)
+                    self.latest = (v, page, asset)
                     self.statusItem?.menu = self.buildMenu(docked: true)
                     if manual || UserDefaults.standard.string(forKey: "notifiedVersion") != v {
                         UserDefaults.standard.set(v, forKey: "notifiedVersion")
-                        self.alert("Clawd v\(v) is out! Open my menu and choose Update.", hold: 8, sound: "Pop")
+                        self.alert("Clawd v\(v) is out! Open my menu and click Update.", hold: 8, sound: "Pop")
                     }
                 } else {
                     self.latest = nil

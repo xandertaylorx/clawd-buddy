@@ -128,7 +128,7 @@ Santa in December, a pumpkin from mid-October, or pick a hat yourself under **Ou
 
 ## Updates
 
-Clawd checks this repo's latest release once a day. When a newer version is out he tells you, and an **Update to vX…** item appears at the top of his menu that opens the download. There's also **Check for updates…** in the menu, and a toggle under Features if you'd rather he didn't.
+Clawd checks this repo's latest release once a day. When a newer version is out he tells you, and an **Update to vX** item appears at the top of his menu. Click it and he downloads the new version, swaps himself out and relaunches, no manual download needed. There's also **Check for updates…** in the menu, and a toggle under Features if you'd rather he didn't.
 
 ## Good to know
 
