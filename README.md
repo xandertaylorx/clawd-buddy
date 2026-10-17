@@ -44,11 +44,13 @@ Drag him up to the menu bar and let go. He shrinks into a status item and carrie
 <img src="docs/menubar.png" width="640" alt="Clawd in the menu bar, idle, talking, and as a timer">
 </div>
 
+He **stays put**: reminders, timers and alerts show up as a little bubble hanging under his icon (and he animates and plays a blip), without pulling him out of the menu bar. If you'd rather he hop out to tell you, switch on **Pop out of the menu bar for alerts** under Features.
+
 He's notch-aware: if macOS doesn't have room for his icon (a crowded menu bar next to the notch), he notices, hops back out and tells you instead of silently disappearing.
 
 ## He's a timer
 
-Start a focus session or a break and Clawd **turns into a timer**: an alarm-clock Clawd with a pixel LCD, a draining progress bar and little bells on top. In the menu bar the same face sits in the icon with the countdown next to it. When it's done he hops out of the menu bar to tell you.
+Start a focus session or a break and Clawd **turns into a timer**: an alarm-clock Clawd with a pixel LCD, a draining progress bar and little bells on top. In the menu bar the same face sits in the icon with the countdown next to it. When it's done he tells you with a little bubble under his icon.
 
 <div align="center">
 <img src="docs/timer.gif" width="420" alt="Clawd as a countdown timer, then celebrating">
@@ -116,7 +118,7 @@ Clawd --needs-you          # reads Claude Code's message from stdin
 Clawd --needs-you "text"   # or pass your own
 ```
 
-He then waves and bounces, repeating until you click him or Claude starts working again, popping out of the menu bar if he has to.
+He then waves and bounces, repeating until you click him or Claude starts working again, even while he's docked in the menu bar.
 
 ## Dev tools
 
@@ -198,7 +200,7 @@ Also in the menu: reminders, an in-memory clipboard history (off by default, ski
 
 ## Claude Code buddy
 
-Clawd watches for a busy `claude` process. While Claude Code works he sits down and types, cycling through spinner words like *Flibbertigibbeting…* When it goes quiet after a real run he tells you it's finished, popping out of the menu bar if he has to.
+Clawd watches for a busy `claude` process. While Claude Code works he sits down and types, cycling through spinner words like *Flibbertigibbeting…* When it goes quiet after a real run he tells you it's finished, with a bubble under his icon if he's in the menu bar.
 
 For "Claude needs you" moments, point a Claude Code notification hook (or any script) at his command line:
 

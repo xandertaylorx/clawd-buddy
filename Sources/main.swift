@@ -458,6 +458,7 @@ final class BubbleView: NSView {
     var text = ""
     var shown = 0
     var tailX: CGFloat = 20
+    var tailUp = false
     override var isFlipped: Bool { false }
 
     private var attrs: [NSAttributedString.Key: Any] {
@@ -471,13 +472,19 @@ final class BubbleView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let body = NSRect(x: 1, y: BubbleView.tailH + 1, width: bounds.width - 2,
+        let body = NSRect(x: 1, y: tailUp ? 1 : BubbleView.tailH + 1, width: bounds.width - 2,
                           height: bounds.height - BubbleView.tailH - 2)
         let path = NSBezierPath(roundedRect: body, xRadius: 9, yRadius: 9)
         let tx = min(max(tailX, 16), bounds.width - 16)
-        path.move(to: NSPoint(x: tx - 6, y: body.minY))
-        path.line(to: NSPoint(x: tx, y: 1))
-        path.line(to: NSPoint(x: tx + 6, y: body.minY))
+        if tailUp {
+            path.move(to: NSPoint(x: tx - 6, y: body.maxY))
+            path.line(to: NSPoint(x: tx, y: bounds.height - 1))
+            path.line(to: NSPoint(x: tx + 6, y: body.maxY))
+        } else {
+            path.move(to: NSPoint(x: tx - 6, y: body.minY))
+            path.line(to: NSPoint(x: tx, y: 1))
+            path.line(to: NSPoint(x: tx + 6, y: body.minY))
+        }
         bubbleCream.setFill()
         path.fill()
         clawdOrange.setStroke()
@@ -494,6 +501,7 @@ final class Bubble {
     private var born = 0.0
     private var until = 0.0
     private var typewriter = true
+    private var below = false
 
     init() {
         panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
@@ -510,8 +518,10 @@ final class Bubble {
 
     var isVisible: Bool { panel.isVisible }
 
-    func show(_ text: String, hold: Double, typewriter tw: Bool = true) {
+    func show(_ text: String, hold: Double, typewriter tw: Bool = true, below: Bool = false) {
         let now = CACurrentMediaTime()
+        self.below = below
+        view.tailUp = below
         view.text = text
         view.shown = tw ? 0 : text.count
         typewriter = tw
@@ -536,7 +546,7 @@ final class Bubble {
         }
         let w = panel.frame.width, h = panel.frame.height
         let x = min(max(anchor.midX - w / 2, sf.minX + 4), sf.maxX - w - 4)
-        let y = min(anchor.maxY - 2, sf.maxY - topInset - h)
+        let y = below ? max(sf.minY, anchor.minY - h - 3) : min(anchor.maxY - 2, sf.maxY - topInset - h)
         view.tailX = anchor.midX - x
         panel.setFrameOrigin(CGPoint(x: x, y: y))
     }
@@ -1109,7 +1119,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     static let toggleDefaults: [String: Bool] = [
         "nudges": true, "battery": true, "claude": true, "calendar": false,
         "climb": true, "sounds": true, "quiet": false, "clipboard": false, "updates": true,
-        "bedtime": true, "gitnudges": true, "ghwatch": true, "moods": true,
+        "bedtime": true, "gitnudges": true, "ghwatch": true, "moods": true, "popout": false,
     ]
 
     var mode = Mode.desk
@@ -1407,7 +1417,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func say(_ text: String, hold: Double = 3.2, typewriter: Bool = true) {
         switch mode {
-        case .docked: setTitle(text, hold: hold)
+        case .docked:
+            if text.count > 24 { bubble.show(text, hold: hold, typewriter: false, below: true) } else { setTitle(text, hold: hold) }
         case .docking: break
         default: bubble.show(text, hold: hold, typewriter: typewriter)
         }
@@ -1443,8 +1454,12 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func verifyDocked(after delay: Double) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, self.mode == .docked, self.hiddenByNotch() else { return }
-            self.pendingAlert = "No room in the menu bar for me! Cmd-drag a few icons off it, then dock me again."
-            self.undock()
+            // one more look a moment later, so a momentary hiccup doesn't throw him out
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                guard let self, self.mode == .docked, self.hiddenByNotch() else { return }
+                self.pendingAlert = "No room in the menu bar for me! Cmd-drag a few icons off it, then dock me again."
+                self.undock()
+            }
         }
     }
 
@@ -1580,6 +1595,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func undock() {
         guard mode == .docked else { return }
+        bubble.hide()
         let c = statusCenter()
         let scr = NSScreen.screens.first { $0.frame.contains(c) } ?? NSScreen.main ?? NSScreen.screens[0]
         if let item = statusItem { NSStatusBar.system.removeStatusItem(item) }
@@ -1704,6 +1720,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                              ("Climb on windows", "climb"), ("Sounds (8-bit)", "sounds"), ("Quiet mode", "quiet"),
                              ("Weird moods", "moods"), ("Bedtime nudges", "bedtime"), ("Git nudges", "gitnudges"),
                              ("GitHub alerts (CI, reviews)", "ghwatch"),
+                             ("Pop out of the menu bar for alerts", "popout"),
                              ("Check for updates daily", "updates")] {
             add(title, #selector(toggleDefault(_:)), to: feats, obj: key)
         }
@@ -2520,14 +2537,20 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: alerts
 
-    /// Pops Clawd out of the menu bar if needed, then delivers the message; he goes back home afterwards.
+    /// Delivers a message. A docked Clawd stays docked (message under his icon) unless "popout" is on.
     func alert(_ text: String, hold: Double = 9, sound: String? = "Glass") {
         if sound != nil { Sfx.play(.alert) }
         switch mode {
         case .docked:
-            pendingAlert = text
-            redockAt = CACurrentMediaTime() + hold + 4
-            undock()
+            if on("popout") {
+                pendingAlert = text
+                redockAt = CACurrentMediaTime() + hold + 4
+                undock()
+            } else {
+                // stay in the menu bar: the icon reacts, and the message hangs under it
+                if focusEnd == nil { brain.start(.jump) }
+                bubble.show(text, hold: hold, typewriter: false, below: true)
+            }
         case .docking:
             pendingAlert = text
         default:
@@ -2943,7 +2966,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 setRate(12)
                 updateOverride()
                 Sfx.play(.dock)
-                setTitle("Home!", hold: 2)
+                if let a = pendingAlert { pendingAlert = nil; bubble.show(a, hold: 8, typewriter: false, below: true) }
+                else { setTitle("Home!", hold: 2) }
                 verifyDocked(after: 0.8)
             }
 
@@ -3007,6 +3031,9 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             checkUtilities()
         }
 
+        if mode == .docked, bubble.isVisible, let f = statusItem?.button?.window?.frame {
+            bubble.update(anchor: f, screenFrame: statusItem?.button?.window?.screen?.frame ?? screen.frame, topInset: 0, now: now)
+        }
         if mode != .docked && mode != .docking {
             bubble.update(anchor: bubbleAnchor, screenFrame: screen.frame, topInset: max(screen.safeAreaInsets.top, 24), now: now)
         }
