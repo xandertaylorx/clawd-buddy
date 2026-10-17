@@ -128,7 +128,17 @@ Santa in December, a pumpkin from mid-October, or pick a hat yourself under **Ou
 
 ## Updates
 
-Clawd checks this repo's latest release once a day. When a newer version is out he tells you, and an **Update to vX** item appears at the top of his menu. Click it and he downloads the new version, swaps himself out and relaunches, no manual download needed. There's also **Check for updates…** in the menu, and a toggle under Features if you'd rather he didn't.
+Clawd checks this repo's latest release once a day. When a newer version is out he tells you, and an **⬆ Update to vX** item appears at the top of his menu.
+
+<div align="center">
+
+**click Update → he downloads the new version → swaps himself out → relaunches**
+
+</div>
+
+No manual download. He verifies the download is really Clawd before installing, and if he can't update himself (for example, he's in a folder he can't write to) he opens the release page instead. **Check for updates…** is in the menu too, and **Check for updates daily** under Features turns the automatic check off.
+
+Updates come from the `Clawd.zip` on this repo's latest [release](https://github.com/xandertaylorx/clawd-buddy/releases), so you're trusting this repo, the same as when you first downloaded him. The build isn't notarized (no paid Apple Developer ID yet), so the very first launch of a fresh download still needs right-click → **Open**. Self-updates don't repeat that. If you're upgrading from v1.1.0, download v1.2.0 by hand once; it's the first version that can update itself.
 
 ## Good to know
 
@@ -150,6 +160,12 @@ build.sh             compiles, makes the icon, bundles Clawd.app
 VERSION              the version number baked into the app
 .github/workflows/   builds Clawd.zip and attaches it to each release
 ```
+
+## Releasing a new version
+
+1. Change the number in `VERSION` and push.
+2. Publish a GitHub release tagged `vX.Y.Z`.
+3. A GitHub Action builds the app and attaches `Clawd.zip`. Everyone running an older version gets the update prompt within a day.
 
 ## License
 
