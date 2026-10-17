@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clawd: a tiny pixel crab that lives on your Mac</title>
+<meta name="description" content="Clawd is a free, open-source desktop companion for macOS. He wanders your screen, lives in your menu bar, and turns into a focus timer, a file shelf, a folder tidier and more.">
+<meta name="theme-color" content="#faf9f5">
+<link rel="canonical" href="https://clawd.crooli.com/">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Clawd: a tiny pixel crab that lives on your Mac">
+<meta property="og:description" content="A free, open-source desktop companion for macOS. Menu bar buddy, focus timer, file shelf, folder tidier, mini-games and more.">
+<meta property="og:url" content="https://clawd.crooli.com/">
+<meta property="og:image" content="https://clawd.crooli.com/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://clawd.crooli.com/assets/og.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="nav" id="top">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="Clawd home">
+      <canvas id="logo" width="30" height="28" aria-hidden="true"></canvas>
+      <span>clawd</span>
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#games">Games</a>
+      <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/xandertaylorx/clawd-buddy" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <a class="btn btn-dark btn-sm" href="#install" data-download>Download</a>
+  </div>
+</header>
+
+<main>
+
+<!-- HERO -->
+<section class="hero wrap">
+  <p class="eyebrow reveal">A free desktop companion for macOS</p>
+  <h1 class="reveal d1">A tiny pixel crab<br>that <em>lives on your Mac.</em></h1>
+  <p class="lede reveal d2">Clawd wanders along the bottom of your screen, settles into your menu bar, and quietly gets useful: focus timers, folder tidying, file drops, a GitHub dashboard, and a tap on the shoulder when Claude Code is done.</p>
+  <div class="cta reveal d3">
+    <a class="btn btn-dark btn-lg" href="https://github.com/xandertaylorx/clawd-buddy/releases/latest/download/Clawd.zip" data-download-link>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 21h14"/></svg>
+      Download for macOS
+    </a>
+    <button class="btn btn-ghost btn-lg" data-copy="git clone https://github.com/xandertaylorx/clawd-buddy.git && cd clawd-buddy && ./build.sh && open build/Clawd.app">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>
+      <span class="copy-label">Copy install command</span>
+    </button>
+  </div>
+  <p class="meta reveal d3"><span id="ver">Latest release</span> · macOS 14+ · Free &amp; open source (MIT)</p>
+
+  <figure class="window reveal d4" data-perch>
+    <div class="window-bar"><i></i><i></i><i></i><span>Clawd on your desktop</span></div>
+    <img src="assets/hero.gif" alt="Clawd walking along the bottom of a screen, talking, jumping, dancing and napping" width="640" height="200">
+  </figure>
+  <p class="hint reveal d4"><span class="spark">✻</span> That little guy at the bottom of this page is really Clawd. Click him. Drag him. <strong>Throw him.</strong></p>
+</section>
+
+<!-- CHIPS -->
+<section class="chips" aria-label="What he does">
+  <div class="chips-track">
+    <span>Menu bar buddy</span><span>Focus timer</span><span>File shelf</span><span>Folder tidier</span><span>Link to MP3/MP4</span><span>Claude Code alerts</span><span>GitHub dashboard</span><span>Port watcher</span><span>Weather outfits</span><span>Flappy Clawd</span><span>Basketball</span><span>Screenshot to text</span><span>8-bit sounds</span>
+    <span>Menu bar buddy</span><span>Focus timer</span><span>File shelf</span><span>Folder tidier</span><span>Link to MP3/MP4</span><span>Claude Code alerts</span><span>GitHub dashboard</span><span>Port watcher</span><span>Weather outfits</span><span>Flappy Clawd</span><span>Basketball</span><span>Screenshot to text</span><span>8-bit sounds</span>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features wrap" id="features">
+  <div class="section-head reveal">
+    <p class="eyebrow">What he does</p>
+    <h2>Small. Pixelated. <em>Surprisingly useful.</em></h2>
+  </div>
+
+  <article class="row reveal">
+    <div class="copy">
+      <p class="eyebrow">Menu bar</p>
+      <h3>Drag him up and he lives there</h3>
+      <p>Grab Clawd, drop him on the menu bar, and he shrinks into a little icon that blinks, walks in place and pops up short phrases. Click him to let him back out. He's notch-aware too: if macOS has no room for his icon, he notices and hops back out instead of vanishing.</p>
+    </div>
+    <div class="media card" data-perch><img src="assets/menubar.png" alt="Clawd in the menu bar: idle, talking, and as a timer" loading="lazy"></div>
+  </article>
+
+  <article class="row flip reveal">
+    <div class="copy">
+      <p class="eyebrow">Focus timer</p>
+      <h3>He literally turns into a timer</h3>
+      <p>Start a focus session or a break and Clawd becomes a tiny alarm clock: a pixel LCD, a draining progress bar and a little bell on top. The same face sits in your menu bar with the countdown next to it. When time's up he hops out to tell you.</p>
+    </div>
+    <div class="media card" data-perch><img src="assets/timer.gif" alt="Clawd as a countdown timer, then celebrating" loading="lazy"></div>
+  </article>
+
+  <article class="row reveal">
+    <div class="copy">
+      <p class="eyebrow">Drop files on him</p>
+      <h3>A tray appears. You pick what happens.</h3>
+      <p>Drag any file over Clawd and a row of targets pops up. Hold it on a shelf, convert images to PNG or JPG, shrink them, zip things up, copy a path, or send it to the Trash. The shelf never moves your files; drag them back out wherever you like.</p>
+      <ul class="ticks"><li>Hold, convert, shrink, zip, path, trash</li><li>Drop a folder and the tray offers Organise instead</li><li>Drop text and it becomes a quick note</li></ul>
+    </div>
+    <div class="media card" data-perch><img src="assets/tray.png" alt="The drop tray above Clawd: Hold, PNG, JPG, Shrink, Zip, Path, Trash" loading="lazy"></div>
+  </article>
+
+  <article class="row flip reveal">
+    <div class="copy">
+      <p class="eyebrow">Folder tidier</p>
+      <h3>He organises a folder, with flair</h3>
+      <p>Drop Clawd on a Finder window and click Organise. He tosses every file into the right bin as the counts climb. Screenshots, images, documents, installers, code, archives: sorted in seconds.</p>
+      <ul class="ticks"><li>Only loose files; subfolders, apps and half-downloaded files are left alone</li><li>Won't touch code projects, your home folder or system folders</li><li>Nothing is ever deleted, and Undo puts it all back</li></ul>
+    </div>
+    <div class="media card" data-perch><img src="assets/organize.gif" alt="Clawd tossing files into Images, Documents, Audio, Videos and Screenshots bins" loading="lazy"></div>
+  </article>
+
+  <article class="row reveal">
+    <div class="copy">
+      <p class="eyebrow">Links</p>
+      <h3>Drop a link, get an MP3 or MP4</h3>
+      <p>Drag a YouTube or Spotify track link onto him and choose MP3 or MP4. Files land in your Downloads and he reveals them in Finder. It runs on the open-source <code>yt-dlp</code> and <code>ffmpeg</code>, which you install once with Homebrew.</p>
+      <p class="fine">Only download things you have the right to keep.</p>
+    </div>
+    <div class="media card" data-perch><img src="assets/links.png" alt="Dropping a YouTube or Spotify link shows MP3 and MP4 tiles" loading="lazy"></div>
+  </article>
+
+  <article class="row flip reveal">
+    <div class="copy">
+      <p class="eyebrow">Claude Code</p>
+      <h3>Knows when Claude is done, or waiting on you</h3>
+      <p>Clawd watches for a busy <code>claude</code> process and tells you the moment a run finishes. One click installs a hook so he waves and bounces whenever Claude Code needs your permission or input, popping out of the menu bar if he has to.</p>
+    </div>
+    <div class="media card claude-card" data-perch>
+      <div class="bubble-demo"><span>✻ Flibbertigibbeting…</span></div>
+      <div class="bubble-demo b2"><span>Claude Code finished!</span></div>
+      <pre class="code"><code><span class="c"># the hook he installs (with a backup of your settings)</span>
+Clawd --needs-you</code></pre>
+      <div class="bubble-demo b3"><span>Claude needs you!</span></div>
+    </div>
+  </article>
+
+  <article class="row reveal">
+    <div class="copy">
+      <p class="eyebrow">Dev tools</p>
+      <h3>Your GitHub, at a glance</h3>
+      <p>A dashboard hangs off Clawd with your recent repos, CI status dots, open PRs and the reviews waiting for you. It uses the <code>gh</code> CLI, so there's no token to paste. He'll tell you when CI fails. There's also a Git buddy that nags (nicely) about uncommitted work, and a port watcher that tells you when your dev server goes down.</p>
+    </div>
+    <div class="media card" data-perch><img src="assets/github.png" alt="The GitHub dashboard panel above Clawd" loading="lazy"></div>
+  </article>
+
+  <article class="row flip reveal">
+    <div class="copy">
+      <p class="eyebrow">Weather and day &amp; night</p>
+      <h3>He dresses for the weather</h3>
+      <p>Tell him your city and he wears an umbrella in the rain, shades when it's hot, a scarf when it's cold and snow on his head when it flurries. After 9pm he puts on a nightcap under twinkling stars, and he'll nudge you at bedtime.</p>
+    </div>
+    <div class="media card" data-perch><img src="assets/accessories.png" alt="Clawd with an umbrella, snow, sunglasses, a scarf and a nightcap" loading="lazy"></div>
+  </article>
+</section>
+
+<!-- GAMES -->
+<section class="games wrap" id="games">
+  <div class="section-head reveal">
+    <p class="eyebrow">Play</p>
+    <h2>He's also <em>a toy.</em></h2>
+    <p class="sub">Four little games, a physics ball you can throw across your screen, and a handful of rare weird moods when you're not looking.</p>
+  </div>
+  <div class="grid4">
+    <figure class="game card reveal" data-perch><img src="assets/game.gif" alt="Token Catch" loading="lazy"><figcaption><h4>Token Catch</h4><p>Move your mouse, catch coins and gems, dodge the bugs. 30 seconds.</p></figcaption></figure>
+    <figure class="game card reveal d1" data-perch><img src="assets/flap.gif" alt="Flappy Clawd" loading="lazy"><figcaption><h4>Flappy Clawd</h4><p>Click or press space to flap through the pipes.</p></figcaption></figure>
+    <figure class="game card reveal" data-perch><img src="assets/basketball.gif" alt="Basketball" loading="lazy"><figcaption><h4>Basketball</h4><p>He rolls into a ball and a hoop appears. Farther shots score more.</p></figcaption></figure>
+    <figure class="game card reveal d1" data-perch><img src="assets/ball.gif" alt="Physics ball" loading="lazy"><figcaption><h4>Physics ball</h4><p>Grab him and throw him. He bounces off your screen edges and windows.</p></figcaption></figure>
+  </div>
+  <article class="row reveal moods">
+    <div class="copy">
+      <p class="eyebrow">Weird moods</p>
+      <h3>Every so often, something odd happens</h3>
+      <p>He builds a tiny fort on top of one of your windows. He hides off the edge of the screen and peeks back at you. He sneezes. He turns into a ghost. All with soft 8-bit blips, and every sound can be muted.</p>
+    </div>
+    <div class="media card" data-perch><img src="assets/moods.png" alt="Clawd's fort on a window, and peeking over the screen edge" loading="lazy"></div>
+  </article>
+</section>
+
+<!-- TOOLS -->
+<section class="tools wrap">
+  <div class="section-head reveal">
+    <p class="eyebrow">Little tools</p>
+    <h2>And a few shortcuts <em>worth keeping.</em></h2>
+  </div>
+  <div class="grid-tools">
+    <div class="tool card reveal" data-perch><kbd>⌃⌥T</kbd><h4>Screenshot to text</h4><p>Drag a box around anything and the text lands on your clipboard. On-device OCR.</p></div>
+    <div class="tool card reveal d1" data-perch><kbd>⌃⌥C</kbd><h4>Color picker</h4><p>An eyedropper for anywhere on screen. Copies the hex code.</p></div>
+    <div class="tool card reveal d2" data-perch><kbd>⌃⌥Space</kbd><h4>Ask Clawd</h4><p>A calculator that also converts units and currency, and tells the time in Tokyo.</p></div>
+    <div class="tool card reveal" data-perch><kbd>⌃⌥P</kbd><h4>Password generator</h4><p>Copies a strong one, keeps it out of clipboard history, and clears it after 45 seconds.</p></div>
+    <div class="tool card reveal d1" data-perch><kbd>⌃⌥N</kbd><h4>Quick notes</h4><p>Jot something down from anywhere. Click a note later to copy it.</p></div>
+    <div class="tool card reveal d2" data-perch><kbd>⌃⌥G</kbd><h4>GitHub dashboard</h4><p>Repos, CI and review requests, one keystroke away.</p></div>
+  </div>
+</section>
+
+<!-- TRY HIM -->
+<section class="try" id="try">
+  <div class="wrap try-inner">
+    <p class="eyebrow light reveal">Try him right here</p>
+    <h2 class="reveal">Go on. <em>Poke the crab.</em></h2>
+    <p class="sub reveal">He's the one at the bottom of the page. Use these to boss him around, or just grab him.</p>
+    <div class="controls reveal" role="group" aria-label="Control Clawd">
+      <button class="chip-btn" data-act="wave">Wave</button>
+      <button class="chip-btn" data-act="jump">Jump</button>
+      <button class="chip-btn" data-act="dance">Dance</button>
+      <button class="chip-btn" data-act="sleep">Sleep</button>
+      <button class="chip-btn" data-act="talk">Say something</button>
+      <button class="chip-btn" data-act="perch">Climb a card</button>
+      <button class="chip-btn accent" data-act="ball" aria-pressed="false">Roll into a ball</button>
+    </div>
+    <p class="fine light reveal">Tip: in ball mode, grab him and fling him. He'll bounce off the screen edges and the cards on this page.</p>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section class="install wrap" id="install">
+  <div class="section-head reveal">
+    <p class="eyebrow">Get Clawd</p>
+    <h2>Free. Open source. <em>Two ways in.</em></h2>
+  </div>
+  <div class="install-card card reveal" data-perch>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="dl">Download</button>
+      <button role="tab" aria-selected="false" data-tab="src">Build from source</button>
+    </div>
+    <div class="tab-panel" data-panel="dl">
+      <div class="dl-main">
+        <div>
+          <h3>Clawd for macOS</h3>
+          <p class="fine" id="dl-meta">Latest release · macOS 14 or later</p>
+        </div>
+        <a class="btn btn-clay btn-lg" href="https://github.com/xandertaylorx/clawd-buddy/releases/latest/download/Clawd.zip" data-download-link>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 21h14"/></svg>
+          Download Clawd.zip
+        </a>
+      </div>
+      <ol class="steps">
+        <li><b>Unzip</b> and drag <code>Clawd.app</code> to Applications.</li>
+        <li><b>Right-click, then Open</b> the first time. It isn't notarized yet, so macOS asks once.</li>
+        <li><b>Say hi.</b> He drops in from the top of your screen. Right-click him for the menu.</li>
+      </ol>
+      <p class="fine">After that he updates himself: click <em>Update</em> in his menu when a new version is out.</p>
+    </div>
+    <div class="tab-panel" data-panel="src" hidden>
+      <p class="fine">Needs macOS 14+ and the Swift toolchain (Xcode or the Command Line Tools). No packages, no Xcode project.</p>
+      <div class="cmd">
+        <pre><code>git clone https://github.com/xandertaylorx/clawd-buddy.git
+cd clawd-buddy
+./build.sh
+open build/Clawd.app</code></pre>
+        <button class="btn btn-dark btn-sm" data-copy="git clone https://github.com/xandertaylorx/clawd-buddy.git && cd clawd-buddy && ./build.sh && open build/Clawd.app"><span class="copy-label">Copy</span></button>
+      </div>
+      <p class="fine">Optional extras: <code>brew install yt-dlp ffmpeg gh</code> for link downloads and the GitHub dashboard.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq wrap" id="faq">
+  <div class="section-head reveal">
+    <p class="eyebrow">Questions</p>
+    <h2>Good to <em>know.</em></h2>
+  </div>
+  <div class="faq-list reveal">
+    <details><summary>Is it safe? What does it do with my data?</summary><p>Everything runs on your Mac. The only network requests are the ones you trigger or turn on: the daily update check (GitHub), a currency rate lookup, weather for the city you set, the <code>gh</code> CLI for the dashboard, and downloads you ask for. The clipboard history lives in memory only and is off by default. The source is all in one repo you can read.</p></details>
+    <details><summary>Why does macOS warn me when I open it?</summary><p>It isn't notarized with a paid Apple Developer ID yet. Right-click the app and choose Open the first time, and macOS remembers. Building from source avoids the warning entirely.</p></details>
+    <details><summary>Does it work with a notch or a crowded menu bar?</summary><p>Yes. If macOS runs out of room for his menu bar icon (it silently drops what doesn't fit), Clawd notices, hops back out and tells you to make some space.</p></details>
+    <details><summary>Will it organise my files without asking?</summary><p>Never. He only tidies when you click Organise, only touches loose files at the top level, skips code projects and system folders, never deletes anything, and Undo puts every file back.</p></details>
+    <details><summary>Is this made by Anthropic?</summary><p>No. Clawd is an independent fan project inspired by the little mascot from Claude Code. It isn't affiliated with, endorsed by, or sponsored by Anthropic. This site borrows a warm, editorial look as a tribute, not a claim.</p></details>
+    <details><summary>Can I turn things off?</summary><p>Everything. The Features menu has a switch for each behaviour (sounds, weird moods, nudges, window climbing, update checks) and shows a tick for what's on. There's a Quiet mode too, which also kicks in during Zoom calls.</p></details>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap foot-inner">
+    <div>
+      <a class="brand" href="#top"><canvas id="logo2" width="30" height="28" aria-hidden="true"></canvas><span>clawd</span></a>
+      <p class="credits">Built by <a href="https://xandertaylor.org" target="_blank" rel="noopener">Xander</a>
+        &middot; developed by <a href="https://tizzle.org" target="_blank" rel="noopener">TIZZLE</a>
+        &middot; owned by <a href="https://crooli.com" target="_blank" rel="noopener">Crooli</a></p>
+      <p class="fine">An independent fan project, not affiliated with Anthropic. MIT licensed.</p>
+    </div>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="https://github.com/xandertaylorx/clawd-buddy" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/xandertaylorx/clawd-buddy/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/xandertaylorx/clawd-buddy/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+      <button class="link-btn" id="hide-pet" type="button">Hide the crab</button>
+    </nav>
+  </div>
+</footer>
+
+<!-- the live crab -->
+<canvas id="pet" aria-label="Clawd, a pixel crab. Drag him around." role="img"></canvas>
+<div class="pet-bubble" id="bubble" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

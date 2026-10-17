@@ -13,6 +13,8 @@ He's also a focus timer, a file shelf, a calculator, a color picker, and he'll t
 <img src="https://img.shields.io/badge/dependencies-none-d97757?style=flat-square" alt="No dependencies">
 <img src="https://img.shields.io/badge/license-MIT-d97757?style=flat-square" alt="MIT">
 
+**[clawd.crooli.com](https://clawd.crooli.com)**
+
 </div>
 
 <br>
@@ -274,6 +276,7 @@ Sources/Sfx.swift         8-bit sound synth
 Sources/OCR.swift         screenshot to text
 Sources/Art.swift    renders the README visuals
 build.sh             compiles, makes the icon, bundles Clawd.app
+website/             the landing page (static HTML/CSS/JS, with a live Clawd on it). Preview: python3 -m http.server -d website
 VERSION              the version number baked into the app
 .github/workflows/   builds Clawd.zip and attaches it to each release
 ```
@@ -283,6 +286,10 @@ VERSION              the version number baked into the app
 1. Change the number in `VERSION` and push.
 2. Publish a GitHub release tagged `vX.Y.Z`.
 3. A GitHub Action builds the app and attaches `Clawd.zip`. Everyone running an older version gets the update prompt within a day.
+
+## Credits
+
+Built by [Xander](https://xandertaylor.org), developed by [TIZZLE](https://tizzle.org), owned by [Crooli](https://crooli.com). The website lives at **[clawd.crooli.com](https://clawd.crooli.com)**.
 
 ## License
 

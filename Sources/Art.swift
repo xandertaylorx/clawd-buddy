@@ -374,6 +374,7 @@ func renderArt(into dir: String) {
     writeCG(trayImage(), to: "\(dir)/tray.png")
     writeCG(shelfImage(), to: "\(dir)/shelf.png")
     writeCG(menubarImage(), to: "\(dir)/menubar.png")
+    writeCG(ogImage(), to: "\(dir)/og.png")
     let of = organizeFrames()
     writeGIF(of, to: "\(dir)/organize.gif")
     if let dbg = ProcessInfo.processInfo.environment["CLAWD_ART_DEBUG"] { writeCG(of[min(40, of.count - 1)].0, to: "\(dbg)/mid.png"); writeCG(of[of.count - 1].0, to: "\(dbg)/end.png") }
@@ -782,4 +783,25 @@ func basketballFrames() -> [(CGImage, Double)] {
         frames.append((img, 0.055))
     }
     return frames
+}
+
+// MARK: social card for the website
+
+func ogImage() -> CGImage {
+    let w = 1200, h = 630
+    return renderScene(w, h) {
+        NSColor(srgbRed: 0.98, green: 0.976, blue: 0.961, alpha: 1).setFill()
+        NSRect(x: 0, y: 0, width: w, height: h).fill()
+        NSGradient(colors: [NSColor(srgbRed: 0.85, green: 0.47, blue: 0.34, alpha: 0.18), NSColor.clear])!
+            .draw(in: NSRect(x: 0, y: 0, width: 1200, height: 630), relativeCenterPosition: NSPoint(x: 0.55, y: -0.35))
+        let serif = NSFont(name: "Georgia", size: 64) ?? NSFont.systemFont(ofSize: 64)
+        let sans = NSFont(name: "Poppins-Medium", size: 26) ?? NSFont.systemFont(ofSize: 26, weight: .medium)
+        let ink = NSColor(srgbRed: 0.078, green: 0.078, blue: 0.075, alpha: 1)
+        ("A tiny pixel crab" as NSString).draw(at: NSPoint(x: 90, y: 380), withAttributes: [.font: serif, .foregroundColor: ink])
+        ("that lives on your Mac." as NSString).draw(at: NSPoint(x: 90, y: 305), withAttributes: [.font: serif, .foregroundColor: clawdOrange])
+        ("Clawd: a free desktop companion for macOS" as NSString).draw(at: NSPoint(x: 94, y: 220), withAttributes: [.font: sans, .foregroundColor: NSColor(white: 0.35, alpha: 1)])
+        ("Not affiliated with Anthropic" as NSString).draw(at: NSPoint(x: 94, y: 70), withAttributes: [.font: NSFont.systemFont(ofSize: 20), .foregroundColor: NSColor(white: 0.55, alpha: 1)])
+        NSGraphicsContext.current?.shouldAntialias = false
+        drawClawd(Pose(eyes: .happy, armR: 5, legs: 1, bob: 1), unit: 15, origin: CGPoint(x: 900, y: 90))
+    }
 }
