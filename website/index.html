@@ -230,7 +230,7 @@ Clawd --needs-you</code></pre>
   <div class="install-card card reveal" data-perch>
     <div class="tabs" role="tablist">
       <button role="tab" aria-selected="true" data-tab="dl">Download</button>
-      <button role="tab" aria-selected="false" data-tab="src">Build from source</button>
+      <span class="tab-wrap"><span class="rec-tag">Recommended</span><button role="tab" aria-selected="false" data-tab="src">Build from source</button></span>
     </div>
     <div class="tab-panel" data-panel="dl">
       <div class="dl-main">
@@ -251,7 +251,7 @@ Clawd --needs-you</code></pre>
       <p class="fine">After that he updates himself: click <em>Update</em> in his menu when a new version is out.</p>
     </div>
     <div class="tab-panel" data-panel="src" hidden>
-      <p class="fine">Needs macOS 14+ and the Swift toolchain (Xcode or the Command Line Tools). No packages, no Xcode project.</p>
+      <p class="fine"><strong class="good">No macOS security prompt.</strong> Because you build it on your own Mac, Gatekeeper never flags it, so there's no right-click &rarr; Open step. Needs macOS 14+ and the Swift toolchain (Xcode or the Command Line Tools). No packages, no Xcode project.</p>
       <div class="cmd">
         <pre><code>git clone https://github.com/xandertaylorx/clawd-buddy.git
 cd clawd-buddy

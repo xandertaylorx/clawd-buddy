@@ -158,7 +158,10 @@ em { font-style: italic; color: var(--clay); }
 /* install */
 .install { padding: clamp(80px, 11vw, 140px) 0 clamp(40px, 6vw, 70px); }
 .install-card { max-width: 820px; margin: 0 auto; padding: 14px; background: #fff; }
-.tabs { display: flex; gap: 6px; background: var(--oat); border-radius: 14px; padding: 5px; width: fit-content; margin: 0 0 22px; }
+.tabs { display: flex; gap: 6px; background: var(--oat); border-radius: 14px; padding: 5px; width: fit-content; margin: 14px 0 22px 4px; }
+.tab-wrap { position: relative; display: inline-flex; }
+.rec-tag { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); z-index: 1; font-family: var(--sans); font-size: .6rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #fff; background: var(--clay); padding: 3px 9px; border-radius: 999px; white-space: nowrap; pointer-events: none; box-shadow: 0 3px 8px -3px rgba(217, 119, 87, .8); }
+.fine .good { color: var(--green); font-weight: 600; }
 .tabs button { font-family: var(--sans); font-weight: 500; font-size: .86rem; color: var(--muted); background: transparent; border: 0; border-radius: 10px; padding: 9px 20px; cursor: pointer; transition: all .18s; }
 .tabs button[aria-selected="true"] { background: #fff; color: var(--slate); box-shadow: 0 1px 3px rgba(20, 20, 19, .12); }
 .tab-panel { padding: 8px 18px 20px; }
@@ -170,6 +173,9 @@ em { font-style: italic; color: var(--clay); }
 .cmd { position: relative; margin: 18px 0 4px; }
 .cmd pre { margin: 0; background: var(--slate); color: #e8e6dc; border-radius: 14px; padding: 22px 130px 22px 22px; font-size: .88rem; line-height: 1.75; overflow-x: auto; }
 .cmd .btn { position: absolute; top: 14px; right: 14px; }
+.cmd pre code, .code code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
+.cmd .btn-dark { background: rgba(250, 249, 245, .12); color: var(--ivory); border-color: rgba(250, 249, 245, .28); }
+.cmd .btn-dark:hover { background: rgba(250, 249, 245, .22); box-shadow: none; }
 .cmd .btn.copied, .btn.copied { background: var(--green); border-color: var(--green); color: #fff; }
 
 /* faq */
