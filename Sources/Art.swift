@@ -292,7 +292,7 @@ func trayImage() -> CGImage {
         let bg = NSBezierPath(roundedRect: NSRect(x: ox, y: 124, width: tw, height: 70), xRadius: 14, yRadius: 14)
         NSColor(white: 1, alpha: 0.65).setFill()
         bg.fill()
-        for (i, k) in Tile.allCases.enumerated() {
+        for (i, k) in Tile.files.enumerated() {
             let tv = TileView(kind: k, frame: NSRect(x: 0, y: 0, width: 54, height: 54))
             tv.hot = (k == .shrink)
             NSGraphicsContext.current?.saveGraphicsState()
@@ -374,4 +374,138 @@ func renderArt(into dir: String) {
     writeCG(trayImage(), to: "\(dir)/tray.png")
     writeCG(shelfImage(), to: "\(dir)/shelf.png")
     writeCG(menubarImage(), to: "\(dir)/menubar.png")
+    let of = organizeFrames()
+    writeGIF(of, to: "\(dir)/organize.gif")
+    if let dbg = ProcessInfo.processInfo.environment["CLAWD_ART_DEBUG"] { writeCG(of[min(40, of.count - 1)].0, to: "\(dbg)/mid.png"); writeCG(of[of.count - 1].0, to: "\(dbg)/end.png") }
+    writeCG(linksImage(), to: "\(dir)/links.png")
+}
+
+// MARK: organise + links visuals
+
+func fileIconArt(_ ext: String, _ color: NSColor, at p: CGPoint) {
+    let r = NSRect(x: p.x - 13, y: p.y - 16, width: 26, height: 32)
+    let body = NSBezierPath(roundedRect: r, xRadius: 4, yRadius: 4)
+    NSColor.white.setFill()
+    body.fill()
+    color.setFill()
+    NSBezierPath(roundedRect: NSRect(x: r.minX, y: r.maxY - 11, width: r.width, height: 11), xRadius: 4, yRadius: 4).fill()
+    NSColor(white: 0, alpha: 0.18).setStroke()
+    body.lineWidth = 1
+    body.stroke()
+    let a: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedSystemFont(ofSize: 7, weight: .bold), .foregroundColor: NSColor.white]
+    let sz = (ext as NSString).size(withAttributes: a)
+    (ext as NSString).draw(at: NSPoint(x: r.midX - sz.width / 2, y: r.maxY - 9.5), withAttributes: a)
+}
+
+func organizeFrames() -> [(CGImage, Double)] {
+    let w = 640, h = 270
+    let bins: [(String, String, NSColor)] = [("Images", "png", rgb(0.35, 0.6, 0.9)), ("Documents", "pdf", rgb(0.85, 0.35, 0.35)),
+                                              ("Audio", "mp3", rgb(0.6, 0.4, 0.85)), ("Videos", "mov", rgb(0.95, 0.6, 0.2)),
+                                              ("Screenshots", "png", rgb(0.2, 0.7, 0.65))]
+    let order = [0, 1, 2, 0, 3, 4, 1, 0, 2, 4, 1, 0]   // which bin each of the 12 files goes to
+    let bx0: CGFloat = 100, by: CGFloat = 130
+    let clawdX: CGFloat = 275
+    let flight = 0.55, spacing = 0.33
+    let binViews = bins.map { b -> BinView in let v = BinView(frame: NSRect(x: 0, y: 0, width: 80, height: 62)); v.name = b.0; return v }
+    var frames: [(CGImage, Double)] = []
+    let dt = 0.08
+    var t = 0.0
+    let promptEnd = 2.0, start = 2.2, total = start + Double(order.count) * spacing + flight + 2.6
+    while t < total {
+        let tt = t - start
+        let counts = bins.indices.map { bi in order.enumerated().filter { $0.element == bi && tt >= Double($0.offset) * spacing + flight }.count }
+        let done = tt >= Double(order.count) * spacing + flight
+        let img = renderScene(w, h) {
+            backdrop(w, h)
+            let s = Int(t / 0.1)
+            var p = Pose(eyes: .happy)
+            if t < promptEnd { p = Pose(bob: Int(t / 0.7) % 2) }
+            else if done { p.armL = 5; p.armR = 5; p.bob = s % 2 }
+            else { p.armL = s % 2 == 0 ? 5 : 1; p.armR = s % 2 == 0 ? 1 : 5; p.legs = s % 2 + 1; p.bob = s % 2 }
+            sprite(p, x: clawdX, y: 34)
+            if t < promptEnd {
+                // the prompt after dropping Clawd on a Finder window
+                let tw: CGFloat = 2 * 54 + 6 + 16
+                let ox = clawdX + 45 - tw / 2
+                for (i, k) in [Tile.organize, Tile.cancel].enumerated() {
+                    let tv = TileView(kind: k, frame: NSRect(x: 0, y: 0, width: 54, height: 54))
+                    tv.hot = (i == 0 && t > 1.5)
+                    NSGraphicsContext.current?.saveGraphicsState()
+                    let tr = NSAffineTransform()
+                    tr.translateX(by: ox + 8 + CGFloat(i) * 60, yBy: 128)
+                    tr.concat()
+                    tv.draw(tv.bounds)
+                    NSGraphicsContext.current?.restoreGraphicsState()
+                }
+                bubble("Downloads has 12 files I can sort. Organise it?", cx: clawdX + 45, bottom: 196)
+                return
+            }
+            for (i, v) in binViews.enumerated() {
+                v.count = counts[i]
+                var bounce: CGFloat = 0
+                for (k, bi) in order.enumerated() where bi == i {
+                    let since = tt - (Double(k) * spacing + flight)
+                    if since >= 0 && since < 0.5 { bounce = max(bounce, CGFloat(10 * pow(0.84, since * 12.5))) }
+                }
+                NSGraphicsContext.current?.saveGraphicsState()
+                let tr = NSAffineTransform()
+                tr.translateX(by: bx0 + CGFloat(i) * 90, yBy: by + bounce)
+                tr.concat()
+                v.draw(v.bounds)
+                NSGraphicsContext.current?.restoreGraphicsState()
+            }
+            for (k, bi) in order.enumerated() {
+                let u = (tt - Double(k) * spacing) / flight
+                guard u >= 0, u < 1 else { continue }
+                let from = CGPoint(x: clawdX + 80, y: 78)
+                let to = CGPoint(x: bx0 + CGFloat(bi) * 90 + 40, y: by + 34)
+                let px = from.x + (to.x - from.x) * CGFloat(u)
+                let py = from.y + (to.y - from.y) * CGFloat(u) + 70 * CGFloat(4 * u * (1 - u))
+                fileIconArt(bins[bi].1, bins[bi].2, at: CGPoint(x: px, y: py))
+            }
+            let n = counts.reduce(0, +)
+            bubble(done ? "Sorted 12 files into 5 folders ✨  Undo is in my menu." : "Sorting Downloads…  \(n)/12",
+                   cx: 320, bottom: 202)
+        }
+        frames.append((img, t >= promptEnd - 0.2 && t < promptEnd ? 0.08 : dt))
+        t += dt
+    }
+    return frames
+}
+
+func linksImage() -> CGImage {
+    let w = artW, h = 220
+    return renderScene(w, h) {
+        backdrop(w, h)
+        sprite(Pose(eyes: .happy, armL: 4, armR: 4), x: 275, y: 34)
+        // the tray: MP3 / MP4
+        let tw: CGFloat = 2 * 54 + 6 + 16
+        let ox = 275 + 45 - tw / 2
+        let bg = NSBezierPath(roundedRect: NSRect(x: ox, y: 130, width: tw, height: 70), xRadius: 14, yRadius: 14)
+        NSColor(white: 1, alpha: 0.65).setFill()
+        bg.fill()
+        for (i, k) in [Tile.mp3, Tile.mp4].enumerated() {
+            let tv = TileView(kind: k, frame: NSRect(x: 0, y: 0, width: 54, height: 54))
+            tv.hot = (i == 0)
+            NSGraphicsContext.current?.saveGraphicsState()
+            let tr = NSAffineTransform()
+            tr.translateX(by: ox + 8 + CGFloat(i) * 60, yBy: 138)
+            tr.concat()
+            tv.draw(tv.bounds)
+            NSGraphicsContext.current?.restoreGraphicsState()
+        }
+        // a link chip being dragged in
+        for (k, text) in ["youtube.com/watch?v=…", "open.spotify.com/track/…"].enumerated() {
+            let a: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium), .foregroundColor: clawdInk]
+            let sz = (text as NSString).size(withAttributes: a)
+            let r = NSRect(x: k == 0 ? 40 : 360, y: k == 0 ? 160 : 100, width: sz.width + 22, height: 24)
+            let chip = NSBezierPath(roundedRect: r, xRadius: 12, yRadius: 12)
+            bubbleCream.setFill()
+            chip.fill()
+            clawdOrange.setStroke()
+            chip.lineWidth = 1.5
+            chip.stroke()
+            (text as NSString).draw(at: NSPoint(x: r.minX + 11, y: r.minY + 6), withAttributes: a)
+        }
+    }
 }

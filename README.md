@@ -69,11 +69,41 @@ Drag any file over Clawd and a tray of drop targets appears:
 | **Path** | Copies the file paths to your clipboard. |
 | **Trash** | Moves the files to the Trash (recoverable). |
 
-Dropping straight on him is the same as **Hold**. Dropping text saves it as a note.
+Dropping straight on him is the same as **Hold**. Dropping text saves it as a note. Drag a folder over him and the tray offers **Organise** instead of the image tools.
 
 <div align="center">
 <img src="docs/shelf.png" width="640" alt="The file shelf holding three files">
 </div>
+
+## He tidies folders
+
+Drop **Clawd onto a Finder window** (or drag a **folder onto him** and pick the ✨ tile) and he offers to organise it. Click **Organise** and he tosses every file into the right folder, with little bins popping up and counting as they fill.
+
+<div align="center">
+<img src="docs/organize.gif" width="640" alt="Clawd tossing files into Images, Documents, Audio, Videos and Screenshots bins">
+</div>
+
+- Sorts by type: Images, Videos, Audio, Documents, Spreadsheets, Presentations, Archives, Installers, Code, Design, Books, Fonts, and Screenshots (spotted by name) on their own.
+- Piles of more than 40 files in one category are split by month (`Images/2026-09`).
+- **Careful by design:** he only touches loose files at the top level. Subfolders, apps, hidden files, half-downloaded files and anything you changed in the last two minutes are left alone, and he refuses code projects (a `.git`, `Package.swift`, `package.json`, Xcode project…), your home folder, and system folders.
+- Nothing is ever deleted, and **Undo last organise** in his menu puts every file back and removes the folders he made.
+- The first time, macOS asks whether Clawd may control Finder. That's how he learns which folder the window shows.
+- From a terminal: `Clawd --organize ~/Downloads`.
+
+## Drop a link, get an MP3 or MP4
+
+Drag a **YouTube** or **Spotify track** link onto him and a tray appears, just like with files:
+
+<div align="center">
+<img src="docs/links.png" width="640" alt="Dropping a YouTube or Spotify link onto Clawd shows MP3 and MP4 tiles">
+</div>
+
+Files are saved to `~/Downloads/Clawd` and revealed in Finder, with a progress readout while he works.
+
+- **Setup:** he uses the open-source [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) and `ffmpeg`, which aren't bundled. If they're missing, he copies the install command for you: `brew install yt-dlp ffmpeg`.
+- **YouTube** links give MP3 (audio) or MP4 (video).
+- **Spotify** tracks give MP3. Spotify's own audio is DRM-locked, so he reads the track's title and artist from its public page and fetches the matching audio from YouTube. Quality and the match can vary.
+- Only download things you have the right to keep. Check the terms of the services you use and your local copyright rules; this is a convenience wrapper and the responsibility is yours.
 
 ## Little tools
 
@@ -142,7 +172,7 @@ Updates come from the `Clawd.zip` on this repo's latest [release](https://github
 
 ## Good to know
 
-- **Privacy.** Everything runs locally. The only network requests are the currency rate lookup for `Ask Clawd` (to `open.er-api.com`) and the daily update check (to `api.github.com`). No accounts, and nothing about you is sent. The clipboard history lives in memory only. Nothing is uploaded.
+- **Privacy.** Everything runs locally. The only network requests are the currency rate lookup for `Ask Clawd` (to `open.er-api.com`), the daily update check (to `api.github.com`), and downloads you ask for (YouTube / Spotify's public track page). No accounts, and nothing about you is sent. The clipboard history lives in memory only. Nothing is uploaded.
 - **Permissions.** Calendar heads-ups are off until you turn them on, which triggers the normal macOS Calendar prompt.
 - **Quiet mode.** One toggle silences his chatter. It switches on by itself during Zoom meetings and while a focus timer runs.
 - **Launch at login** is in his menu.
@@ -155,6 +185,9 @@ A single-purpose Swift/AppKit app with no dependencies. Clawd is drawn from fill
 
 ```
 Sources/main.swift   the app: sprite, behavior, menus, tools
+Sources/Organizer.swift   folder organiser, Finder bridge, animation pieces
+Sources/Downloader.swift  link → MP3/MP4 via yt-dlp
+Sources/PetExtras.swift   drop tray logic, organise animation, downloads
 Sources/Art.swift    renders the README visuals
 build.sh             compiles, makes the icon, bundles Clawd.app
 VERSION              the version number baked into the app

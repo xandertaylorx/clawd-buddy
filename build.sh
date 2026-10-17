@@ -30,6 +30,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSCalendarsFullAccessUsageDescription</key><string>Clawd warns you a few minutes before your calendar events start.</string>
   <key>NSCalendarsUsageDescription</key><string>Clawd warns you a few minutes before your calendar events start.</string>
+  <key>NSAppleEventsUsageDescription</key><string>Clawd looks at which folder a Finder window shows so he can tidy it for you.</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

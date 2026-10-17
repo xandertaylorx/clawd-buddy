@@ -315,9 +315,9 @@ final class SpriteView: NSView {
     var onDragEnd: (() -> Void)?
     var onClick: (() -> Void)?
     var onHold: (() -> Void)?
-    var onDragEnter: (() -> Void)?
+    var onDragEnter: ((DropItems) -> Void)?
     var onDragLeave: (() -> Void)?
-    var onDrop: (([URL], String?) -> Bool)?
+    var onDrop: ((DropItems) -> Bool)?
     var menuProvider: (() -> NSMenu)?
     private var grab = CGPoint.zero
     private var downAt = CGPoint.zero
@@ -327,17 +327,13 @@ final class SpriteView: NSView {
 
     override init(frame f: NSRect) {
         super.init(frame: f)
-        registerForDraggedTypes([.fileURL, .string])
+        registerForDraggedTypes([.fileURL, .URL, .string])
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    override func draggingEntered(_ s: NSDraggingInfo) -> NSDragOperation { onDragEnter?(); return .copy }
+    override func draggingEntered(_ s: NSDraggingInfo) -> NSDragOperation { onDragEnter?(readDrop(s.draggingPasteboard)); return .copy }
     override func draggingExited(_ s: NSDraggingInfo?) { onDragLeave?() }
-    override func performDragOperation(_ s: NSDraggingInfo) -> Bool {
-        let pb = s.draggingPasteboard
-        let urls = (pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
-        return onDrop?(urls, urls.isEmpty ? pb.string(forType: .string) : nil) ?? false
-    }
+    override func performDragOperation(_ s: NSDraggingInfo) -> Bool { onDrop?(readDrop(s.draggingPasteboard)) ?? false }
 
     override var isFlipped: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -485,9 +481,16 @@ final class Bubble {
 // MARK: - Drop tray (appears when you drag files over Clawd) and file shelf
 
 enum Tile: CaseIterable {
-    case hold, png, jpg, shrink, zip, path, trash
+    case hold, png, jpg, shrink, zip, path, trash, organize, mp3, mp4, cancel
+    static let files: [Tile] = [.hold, .png, .jpg, .shrink, .zip, .path, .trash]
+    static let folders: [Tile] = [.hold, .organize, .zip, .path, .trash]
     var icon: String {
         switch self {
+        case .organize: return "✨"
+        case .mp3: return "🎵"
+        case .mp4: return "🎬"
+        case .cancel: return "✖️"
+
         case .hold: return "📥"
         case .png, .jpg: return "🖼"
         case .shrink: return "📉"
@@ -505,6 +508,10 @@ enum Tile: CaseIterable {
         case .zip: return "Zip"
         case .path: return "Path"
         case .trash: return "Trash"
+        case .organize: return "Organise"
+        case .mp3: return "MP3"
+        case .mp4: return "MP4"
+        case .cancel: return "No thanks"
         }
     }
 }
@@ -514,14 +521,18 @@ final class TileView: NSView {
     var hot = false { didSet { needsDisplay = true } }
     var onEnter: (() -> Void)?
     var onExit: (() -> Void)?
-    var onDrop: ((Tile, [URL]) -> Void)?
+    var onDrop: ((Tile, DropItems) -> Void)?
+    var onClick: ((Tile) -> Void)?
 
     init(kind: Tile, frame: NSRect) {
         self.kind = kind
         super.init(frame: frame)
-        registerForDraggedTypes([.fileURL])
+        registerForDraggedTypes([.fileURL, .URL, .string])
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) { onClick?(kind) }
 
     override func draw(_ dirtyRect: NSRect) {
         let r = bounds.insetBy(dx: 1, dy: 1)
@@ -546,10 +557,9 @@ final class TileView: NSView {
     override func draggingExited(_ s: NSDraggingInfo?) { hot = false; onExit?() }
     override func performDragOperation(_ s: NSDraggingInfo) -> Bool {
         hot = false
-        let urls = (s.draggingPasteboard.readObjects(forClasses: [NSURL.self],
-                                                     options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
-        guard !urls.isEmpty else { return false }
-        onDrop?(kind, urls)
+        let items = readDrop(s.draggingPasteboard)
+        guard !items.files.isEmpty || items.link != nil else { return false }
+        onDrop?(kind, items)
         return true
     }
 }
@@ -557,11 +567,13 @@ final class TileView: NSView {
 final class DropTray {
     let panel: NSPanel
     var tiles: [TileView] = []
+    var onEnter: (() -> Void)?
+    var onExit: (() -> Void)?
+    var onDrop: ((Tile, DropItems) -> Void)?
+    var onClick: ((Tile) -> Void)?
 
     init() {
-        let n = Tile.allCases.count
-        let w = CGFloat(n) * 54 + CGFloat(n - 1) * 6 + 16
-        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: w, height: 70), styleMask: [.borderless, .nonactivatingPanel],
+        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 200, height: 70), styleMask: [.borderless, .nonactivatingPanel],
                         backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -569,10 +581,23 @@ final class DropTray {
         panel.level = .statusBar
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        let content = NSView(frame: panel.contentRect(forFrameRect: panel.frame))
+        configure(Tile.files)
+    }
+
+    /// Shows exactly these tiles (the tray adapts to what's being dragged).
+    func configure(_ kinds: [Tile]) {
+        let n = kinds.count
+        let w = CGFloat(n) * 54 + CGFloat(max(0, n - 1)) * 6 + 16
+        panel.setContentSize(NSSize(width: w, height: 70))
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: w, height: 70))
         panel.contentView = content
-        for (i, k) in Tile.allCases.enumerated() {
+        tiles = []
+        for (i, k) in kinds.enumerated() {
             let t = TileView(kind: k, frame: NSRect(x: 8 + CGFloat(i) * 60, y: 8, width: 54, height: 54))
+            t.onEnter = { [weak self] in self?.onEnter?() }
+            t.onExit = { [weak self] in self?.onExit?() }
+            t.onDrop = { [weak self] kind, items in self?.onDrop?(kind, items) }
+            t.onClick = { [weak self] kind in self?.onClick?(kind) }
             content.addSubview(t)
             tiles.append(t)
         }
@@ -1009,9 +1034,10 @@ struct Token { var panel: TokenPanel; var kind: TokenKind; var x: CGFloat; var y
 // MARK: - The pet
 
 let sayNotification = Notification.Name("com.randomclaudething.clawd.say")
+let organizeNotification = Notification.Name("com.randomclaudething.clawd.organize")
 
 final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    enum Mode { case desk, dragging, falling, hopping, docking, docked, game }
+    enum Mode { case desk, dragging, falling, hopping, docking, docked, game, organizing }
 
     static let size = NSSize(width: 96, height: 88)
     static let toggleDefaults: [String: Bool] = [
@@ -1113,6 +1139,30 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var gameGood = true
     var pendingGame = false
 
+    // organise + downloads + finder prompt
+    var orgFolder: URL?
+    var orgLog = OrgLog()
+    var orgBins: [String: BinPanel] = [:]
+    var orgBinOrder: [String] = []
+    var orgQueue: [OrgMove] = []
+    var orgSilent: [OrgMove] = []
+    var orgIdx = 0
+    var orgFly: [OrgFly] = []
+    var orgFlyPool: [FlyPanel] = []
+    var orgSpawnIn = 0.0
+    var orgT = 0.0
+    var orgTotal = 0
+    var orgFinished = false
+    var orgEndAt = 0.0
+    var orgHudIn = 0.0
+    var orgOpenAfter = false
+    var orgBubbleAnchor = NSRect.zero
+    var promptFolder: URL?
+    var pendingFolder: URL?
+    var pendingOrganize: URL?
+    var downloads = 0
+    var lastDlSay = 0.0
+
     func on(_ key: String) -> Bool {
         UserDefaults.standard.object(forKey: key) as? Bool ?? Pet.toggleDefaults[key] ?? false
     }
@@ -1153,14 +1203,13 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         view.onClick = { [unowned self] in self.poked() }
         view.onHold = { [unowned self] in self.petted() }
         brain.onStart = { [unowned self] a in self.react(to: a) }
-        view.onDragEnter = { [unowned self] in self.trayEnter() }
+        view.onDragEnter = { [unowned self] items in self.trayEnter(items) }
         view.onDragLeave = { [unowned self] in self.trayHideAt = CACurrentMediaTime() + 1.0 }
-        view.onDrop = { [unowned self] urls, text in self.droppedOnClawd(urls, text) }
-        for t in tray.tiles {
-            t.onEnter = { [unowned self] in self.trayHideAt = nil }
-            t.onExit = { [unowned self] in self.trayHideAt = CACurrentMediaTime() + 1.0 }
-            t.onDrop = { [unowned self] kind, urls in self.runTile(kind, urls) }
-        }
+        view.onDrop = { [unowned self] items in self.droppedOnClawd(items) }
+        tray.onEnter = { [unowned self] in self.trayHideAt = nil }
+        tray.onExit = { [unowned self] in self.trayHideAt = CACurrentMediaTime() + 1.0 }
+        tray.onDrop = { [unowned self] kind, items in self.tileDropped(kind, items) }
+        tray.onClick = { [unowned self] kind in self.tileClicked(kind) }
         shelf.onChange = { [unowned self] urls in
             if urls.isEmpty { self.shelf.hide() } else { self.shelfHideAt = CACurrentMediaTime() + 10 }
         }
@@ -1169,6 +1218,17 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DistributedNotificationCenter.default().addObserver(forName: sayNotification, object: nil, queue: .main) { [weak self] n in
             guard let text = n.userInfo?["text"] as? String, !text.isEmpty else { return }
             self?.alert(text, sound: "Pop")
+        }
+        DistributedNotificationCenter.default().addObserver(forName: organizeNotification, object: nil, queue: .main) { [weak self] n in
+            guard let path = n.userInfo?["path"] as? String else { return }
+            guard let self else { return }
+            let url = URL(fileURLWithPath: path)
+            if self.mode == .docked {
+                self.pendingOrganize = url
+                self.undock()
+            } else {
+                self.startOrganize(url, fromFinder: true)
+            }
         }
         registerHotKey()
         if on("calendar") { enableCalendar() }
@@ -1282,6 +1342,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: dragging & touching
 
     func dragStarted() {
+        if mode == .organizing { return }
         if mode == .game { endGame(early: true) }
         mode = .dragging
         inZone = false
@@ -1302,6 +1363,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func dragEnded() {
+        if mode == .organizing { return }
         x = panel.frame.origin.x
         y = panel.frame.origin.y
         if inZone {
@@ -1311,11 +1373,12 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             bubble.hide()
             vy = 0
             mode = .falling
+            checkFinderDrop(NSEvent.mouseLocation)
         }
     }
 
     func poked() {
-        if mode == .game { return }
+        if mode == .game || mode == .organizing { return }
         if !shelf.urls.isEmpty && !shelf.isVisible {
             shelfHideAt = CACurrentMediaTime() + 10
             shelf.show()
@@ -1467,6 +1530,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add("PIN · 6 digits", #selector(makePassword(_:)), to: pw, tag: -6)
         sub("Generate password   ⌃⌥P", pw)
         let sh = NSMenu()
+        let undoItem = add("Undo last organise", #selector(undoOrganize))
+        undoItem.tag = 96
         add("Show shelf", #selector(showShelf), to: sh)
         add("Clear shelf", #selector(clearShelf), to: sh)
         sub("File shelf", sh)
@@ -1565,6 +1630,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 item.title = lines.isEmpty ? "Nothing scheduled" : lines.joined(separator: " · ")
             }
             if item.tag == 98 { item.title = statsLine() }
+            if item.tag == 96 { item.isHidden = UserDefaults.standard.data(forKey: "lastOrganize") == nil }
             if item.tag == 97 {
                 item.isHidden = latest == nil
                 if let l = latest { item.title = "⬆ Update to v\(l.version) (installs & restarts)" }
@@ -1671,6 +1737,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func updateOverride() {
         let want: Act?
         if focusEnd != nil { want = .idle }
+        else if downloads > 0 { want = .work }
         else if userIdle { want = .sleep }
         else if claudeWorking && on("claude") { want = .work }
         else { want = nil }
@@ -1980,34 +2047,11 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: drop tray + shelf
 
-    func trayEnter() {
-        guard mode == .desk else { return }
-        trayUp = true
-        trayHideAt = nil
-        bubble.hide()
-        shelf.hide()
-        tray.show()
-    }
-
     func hideTray() {
         trayUp = false
+        if promptFolder != nil { promptFolder = nil; bubble.hide() }
         trayHideAt = nil
         tray.hide()
-    }
-
-    func droppedOnClawd(_ urls: [URL], _ text: String?) -> Bool {
-        hideTray()
-        if !urls.isEmpty {
-            runTile(.hold, urls)
-            return true
-        }
-        if let t = text?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty {
-            notes.insert(t, at: 0)
-            UserDefaults.standard.set(notes, forKey: "notes")
-            say("Saved that as a note.", hold: 2)
-            return true
-        }
-        return false
     }
 
     @objc func showShelf() {
@@ -2048,6 +2092,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self.say(msg, hold: 5)
                 }
             }
+        default:
+            break
         }
     }
 
@@ -2557,6 +2603,11 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 mode = .desk
                 brain.start(.idle, dur: 0.8)
                 updateOverride()
+                maybeShowPrompt()
+                if let f = pendingOrganize {
+                    pendingOrganize = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.startOrganize(f, fromFinder: true) }
+                }
                 if pendingGame {
                     pendingGame = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.startGame() }
@@ -2566,6 +2617,9 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         case .game:
             gameTick(dt, now: now)
+
+        case .organizing:
+            orgTick(dt, now: now)
 
         case .hopping:
             hopT += dt
@@ -2666,7 +2720,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         if mode != .docked && mode != .docking {
-            bubble.update(anchor: panel.frame, screenFrame: screen.frame, topInset: max(screen.safeAreaInsets.top, 24), now: now)
+            bubble.update(anchor: bubbleAnchor, screenFrame: screen.frame, topInset: max(screen.safeAreaInsets.top, 24), now: now)
         }
     }
 
@@ -2700,6 +2754,14 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
 let args = CommandLine.arguments
 
+if args.count >= 3 && args[1] == "--organize" {
+    let path = URL(fileURLWithPath: (args[2] as NSString).expandingTildeInPath).standardizedFileURL.path
+    DistributedNotificationCenter.default().postNotificationName(organizeNotification, object: nil,
+                                                                 userInfo: ["path": path], deliverImmediately: true)
+    RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+    exit(0)
+}
+
 if args.count >= 3 && args[1] == "--say" {
     DistributedNotificationCenter.default().postNotificationName(sayNotification, object: nil,
                                                                  userInfo: ["text": args[2]], deliverImmediately: true)
@@ -2709,6 +2771,43 @@ if args.count >= 3 && args[1] == "--say" {
 
 if args.count >= 3 && args[1] == "--art" {
     renderArt(into: args[2])
+    exit(0)
+}
+
+if args.count >= 2 && args[1] == "--selftest" {
+    let fm = FileManager.default
+    let root = fm.temporaryDirectory.appendingPathComponent("clawd-selftest-\(UUID().uuidString)")
+    try? fm.createDirectory(at: root, withIntermediateDirectories: true)
+    let old = Date().addingTimeInterval(-3600)
+    var names = ["a.png", "b.jpg", "Screenshot 2026-10-01 at 10.00.00.png", "report.pdf", "notes.txt", "song.mp3", "clip.mov",
+                 "data.csv", "app.dmg", "bundle.zip", "script.py", "weird.xyz", "noext", "movie.crdownload", "a (copy).png"]
+    for i in 0..<45 { names.append("bulk\(i).jpg") }
+    for n in names { fm.createFile(atPath: root.appendingPathComponent(n).path, contents: Data("x".utf8)); try? fm.setAttributes([.modificationDate: old], ofItemAtPath: root.appendingPathComponent(n).path) }
+    fm.createFile(atPath: root.appendingPathComponent("fresh.pdf").path, contents: Data("x".utf8))   // just modified: must be skipped
+    try? fm.createDirectory(at: root.appendingPathComponent("SubFolder"), withIntermediateDirectories: true)
+    fm.createFile(atPath: root.appendingPathComponent(".hidden").path, contents: Data("x".utf8))
+    var log = OrgLog()
+    let plan = Organizer.plan(root)
+    for m in plan { Organizer.perform(m, in: root, log: &log) }
+    var summary: [String: Int] = [:]
+    for m in plan { summary[m.folder, default: 0] += 1 }
+    for (k, v) in summary.sorted(by: { $0.key < $1.key }) { print("  \(k): \(v)") }
+    let left = ((try? fm.contentsOfDirectory(atPath: root.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
+    print("left at top level:", left.filter { !summary.keys.map { Organizer.topFolder(OrgMove(src: root, folder: $0)) }.contains($0) })
+    let restored = Organizer.undo(log)
+    let after = Set((try? fm.contentsOfDirectory(atPath: root.path)) ?? [])
+    print("moved", log.entries.count, "restored", restored, "| all originals back:", names.allSatisfy { after.contains($0) }, "| leftover dirs:", after.filter { !names.contains($0) && !$0.hasPrefix(".") && $0 != "fresh.pdf" })
+    let proj = fm.temporaryDirectory.appendingPathComponent("clawd-proj-\(UUID().uuidString)")
+    try? fm.createDirectory(at: proj, withIntermediateDirectories: true)
+    fm.createFile(atPath: proj.appendingPathComponent("Package.swift").path, contents: Data())
+    print("project refused:", Organizer.refusal(for: proj) ?? "NOT REFUSED", "| home refused:", Organizer.refusal(for: URL(fileURLWithPath: NSHomeDirectory())) != nil)
+    print("classify:", Downloader.classify(URL(string: "https://youtu.be/dQw4w9WgXcQ")!), Downloader.classify(URL(string: "https://open.spotify.com/track/0VjIjW4GlUZAMYd2vXMi3b?si=x")!), Downloader.classify(URL(string: "https://example.com")!))
+    print("mp3 args:", Downloader.args(source: "ytsearch1:The Weeknd - Blinding Lights", mp4: false, fileName: "The Weeknd - Blinding Lights").joined(separator: " "))
+    let sem = DispatchSemaphore(value: 0)
+    Downloader.spotifyQuery(URL(string: "https://open.spotify.com/track/0VjIjW4GlUZAMYd2vXMi3b")!) { print("spotify query:", $0 ?? "nil"); sem.signal() }
+    _ = sem.wait(timeout: .now() + 15)
+    print("yt-dlp:", Downloader.tool("yt-dlp") ?? "not installed", "| ffmpeg:", Downloader.tool("ffmpeg") ?? "not installed")
+    try? fm.removeItem(at: root); try? fm.removeItem(at: proj)
     exit(0)
 }
 
