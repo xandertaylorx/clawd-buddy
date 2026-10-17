@@ -1,0 +1,29 @@
+name: Build release
+
+# When you publish a GitHub release, build the app and attach Clawd.zip to it.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: ./build.sh
+      - name: Zip
+        run: ditto -c -k --keepParent build/Clawd.app Clawd.zip
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.event.release.tag_name }}" Clawd.zip --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Clawd
+          path: Clawd.zip

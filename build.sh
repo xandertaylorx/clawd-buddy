@@ -26,7 +26,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>Clawd</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleShortVersionString</key><string>__VERSION__</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSCalendarsFullAccessUsageDescription</key><string>Clawd warns you a few minutes before your calendar events start.</string>
   <key>NSCalendarsUsageDescription</key><string>Clawd warns you a few minutes before your calendar events start.</string>
@@ -34,6 +34,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+sed -i '' "s/__VERSION__/$(cat VERSION)/" "$APP/Contents/Info.plist"
 
 codesign --force --sign - "$APP" >/dev/null 2>&1 || true
 echo "Built $APP"

@@ -1016,7 +1016,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     static let size = NSSize(width: 96, height: 88)
     static let toggleDefaults: [String: Bool] = [
         "nudges": true, "battery": true, "claude": true, "calendar": false,
-        "climb": true, "sounds": true, "quiet": false, "clipboard": false,
+        "climb": true, "sounds": true, "quiet": false, "clipboard": false, "updates": true,
     ]
 
     var mode = Mode.desk
@@ -1079,6 +1079,12 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var hopTarget: Perch?
     var nextPerch = CACurrentMediaTime() + 40
     var perchLeaveAt = 0.0
+
+    // updates
+    var latest: (version: String, url: String)?
+    var lastUpdateCheck = 0.0
+    let repoAPI = "https://api.github.com/repos/xandertaylorx/clawd-buddy/releases/latest"
+    var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
 
     // calendar / clipboard / notes
     let store = EKEventStore()
@@ -1165,6 +1171,9 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         registerHotKey()
         if on("calendar") { enableCalendar() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 25) { [weak self] in
+            if self?.on("updates") == true { self?.checkForUpdates(manual: false) }
+        }
 
         let vis = (NSScreen.main ?? NSScreen.screens[0]).visibleFrame
         x = .random(in: vis.minX + 40...max(vis.minX + 41, vis.maxX - 140))
@@ -1401,6 +1410,11 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             i.submenu = menu
             m.addItem(i)
         }
+        let upd = NSMenuItem(title: "", action: #selector(openUpdate), keyEquivalent: "")
+        upd.target = self
+        upd.tag = 97
+        upd.isHidden = latest == nil
+        m.addItem(upd)
         for tag in [99, 98] {
             let status = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             status.tag = tag
@@ -1451,7 +1465,8 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let feats = NSMenu()
         for (title, key) in [("Break nudges (water, stretch)", "nudges"), ("Low battery warnings", "battery"),
                              ("Watch Claude Code", "claude"), ("Calendar heads-up", "calendar"),
-                             ("Climb on windows", "climb"), ("Sounds", "sounds"), ("Quiet mode", "quiet")] {
+                             ("Climb on windows", "climb"), ("Sounds", "sounds"), ("Quiet mode", "quiet"),
+                             ("Check for updates daily", "updates")] {
             add(title, #selector(toggleDefault(_:)), to: feats, obj: key)
         }
         sub("Features", feats)
@@ -1470,6 +1485,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !docked { add("Climb a window", #selector(climbNow)) }
         m.addItem(.separator())
         add("Launch at login", #selector(toggleLogin))
+        add("Check for updates…", #selector(manualUpdateCheck))
         add("Quit Clawd", #selector(quit))
         return m
     }
@@ -1539,6 +1555,10 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 item.title = lines.isEmpty ? "Nothing scheduled" : lines.joined(separator: " · ")
             }
             if item.tag == 98 { item.title = statsLine() }
+            if item.tag == 97 {
+                item.isHidden = latest == nil
+                if let l = latest { item.title = "⬆ Update to v\(l.version)…" }
+            }
         }
     }
 
@@ -2061,6 +2081,57 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return msg
     }
 
+    // MARK: updates
+
+    func isNewer(_ a: String, than b: String) -> Bool {
+        let x = a.split(separator: ".").map { Int($0) ?? 0 }
+        let y = b.split(separator: ".").map { Int($0) ?? 0 }
+        for i in 0..<max(x.count, y.count) {
+            let p = i < x.count ? x[i] : 0, q = i < y.count ? y[i] : 0
+            if p != q { return p > q }
+        }
+        return false
+    }
+
+    @objc func manualUpdateCheck() { checkForUpdates(manual: true) }
+
+    @objc func openUpdate() {
+        if let u = latest?.url, let url = URL(string: u) { NSWorkspace.shared.open(url) }
+    }
+
+    func checkForUpdates(manual: Bool) {
+        lastUpdateCheck = CACurrentMediaTime()
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastUpdateCheck")
+        guard let url = URL(string: repoAPI) else { return }
+        var req = URLRequest(url: url)
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        req.setValue("clawd-buddy/\(appVersion)", forHTTPHeaderField: "User-Agent")
+        req.timeoutInterval = 15
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard let data, let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let tag = j["tag_name"] as? String else {
+                    if manual { self.say("I couldn't reach GitHub just now, or there's no release yet.", hold: 3.5) }
+                    return
+                }
+                let v = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+                let page = j["html_url"] as? String ?? "https://github.com/xandertaylorx/clawd-buddy/releases"
+                if self.isNewer(v, than: self.appVersion) {
+                    self.latest = (v, page)
+                    self.statusItem?.menu = self.buildMenu(docked: true)
+                    if manual || UserDefaults.standard.string(forKey: "notifiedVersion") != v {
+                        UserDefaults.standard.set(v, forKey: "notifiedVersion")
+                        self.alert("Clawd v\(v) is out! Open my menu and choose Update.", hold: 8, sound: "Pop")
+                    }
+                } else {
+                    self.latest = nil
+                    if manual { self.say("You're on the latest version (v\(self.appVersion)).", hold: 3) }
+                }
+            }
+        }.resume()
+    }
+
     // MARK: alerts
 
     /// Pops Clawd out of the menu bar if needed, then delivers the message; he goes back home afterwards.
@@ -2229,6 +2300,10 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let now = Date()
         let mono = CACurrentMediaTime()
         pollClipboard()
+        if on("updates"), Date().timeIntervalSince1970 - UserDefaults.standard.double(forKey: "lastUpdateCheck") > 86400,
+           mono - lastUpdateCheck > 600 {
+            checkForUpdates(manual: false)
+        }
 
         // away detection: nap when you've been gone a while
         let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)

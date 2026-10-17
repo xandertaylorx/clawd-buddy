@@ -21,7 +21,9 @@ He's also a focus timer, a file shelf, a calculator, a color picker, and he'll t
 
 ## Install
 
-You need macOS 14+ and the Swift toolchain (Xcode or the Command Line Tools). No Xcode project, no packages:
+**Download:** grab `Clawd.zip` from the [latest release](https://github.com/xandertaylorx/clawd-buddy/releases/latest), unzip, and drag `Clawd.app` to Applications. Since it isn't notarized, right-click it and choose **Open** the first time.
+
+**Or build it yourself.** You need macOS 14+ and the Swift toolchain (Xcode or the Command Line Tools). No Xcode project, no packages:
 
 ```bash
 git clone https://github.com/xandertaylorx/clawd-buddy.git
@@ -124,9 +126,13 @@ Santa in December, a pumpkin from mid-October, or pick a hat yourself under **Ou
 <img src="docs/poses.png" width="640" alt="Clawd's poses: idle, walking, waving, dancing, sleeping, surprised, thinking">
 </div>
 
+## Updates
+
+Clawd checks this repo's latest release once a day. When a newer version is out he tells you, and an **Update to vX…** item appears at the top of his menu that opens the download. There's also **Check for updates…** in the menu, and a toggle under Features if you'd rather he didn't.
+
 ## Good to know
 
-- **Privacy.** Everything runs locally. The only network request is the currency rate lookup for `Ask Clawd` (to `open.er-api.com`, no account, nothing about you sent). The clipboard history lives in memory only. Nothing is uploaded.
+- **Privacy.** Everything runs locally. The only network requests are the currency rate lookup for `Ask Clawd` (to `open.er-api.com`) and the daily update check (to `api.github.com`). No accounts, and nothing about you is sent. The clipboard history lives in memory only. Nothing is uploaded.
 - **Permissions.** Calendar heads-ups are off until you turn them on, which triggers the normal macOS Calendar prompt.
 - **Quiet mode.** One toggle silences his chatter. It switches on by itself during Zoom meetings and while a focus timer runs.
 - **Launch at login** is in his menu.
@@ -141,6 +147,8 @@ A single-purpose Swift/AppKit app with no dependencies. Clawd is drawn from fill
 Sources/main.swift   the app: sprite, behavior, menus, tools
 Sources/Art.swift    renders the README visuals
 build.sh             compiles, makes the icon, bundles Clawd.app
+VERSION              the version number baked into the app
+.github/workflows/   builds Clawd.zip and attaches it to each release
 ```
 
 ## License
