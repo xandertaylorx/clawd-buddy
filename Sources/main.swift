@@ -2357,6 +2357,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let out = Files.zip(urls) else { return "Zip failed." }
             return "Made \(out.lastPathComponent) (\(Files.human(Files.size(out))))."
         }
+        if kind == .shrink { return Shrinker.summary(urls) }
         var done = 0, skipped = 0, before = 0, after = 0
         for u in urls {
             var out: URL?

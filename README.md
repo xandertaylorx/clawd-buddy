@@ -66,7 +66,7 @@ Drag any file over Clawd and a tray of drop targets appears:
 | --- | --- |
 | **Hold** | Puts the file on his shelf. Nothing is moved or copied; drag it back out whenever and wherever you like. |
 | **→ PNG / → JPG** | Converts images, saving a copy next to the original. |
-| **Shrink** | Makes a smaller copy (`name-small`), and deletes it if it wouldn't actually be smaller. |
+| **Shrink** | Compresses any image (PNG, JPEG, HEIC, TIFF, BMP, GIF, WebP…) into a smaller copy named `name-small`. JPEG and HEIC are re-encoded at the best quality that actually saves space; flat PNGs (screenshots, UI, pixel art) get a clean 256-colour palette, usually around 80% smaller; photos and gradients get a dithered palette or a JPEG, whichever is far smaller; transparency is kept; huge images are scaled to 2560px. If it can't beat the original it says so instead of leaving a bigger file. Animated GIFs are skipped. |
 | **Zip** | Zips everything you dropped into one archive. |
 | **Path** | Copies the file paths to your clipboard. |
 | **Trash** | Moves the files to the Trash (recoverable). |
