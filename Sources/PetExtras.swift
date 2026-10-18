@@ -210,7 +210,7 @@ extension Pet {
         panel.imageView.image = icon
         panel.alphaValue = 1
         panel.orderFrontRegardless()
-        let from = CGPoint(x: x + Pet.size.width - 10, y: y + 44)
+        let from = CGPoint(x: x + Pet.size.width - 10, y: y + 44 * SpriteView.unit / 6)
         let to = CGPoint(x: bin.base.x + 40, y: bin.base.y + 34)
         orgFly.append(OrgFly(panel: panel, move: m, bin: name, from: from, to: to, t: 0, dur: .random(in: 0.5...0.7)))
     }

@@ -371,7 +371,14 @@ final class SpritePanel: NSPanel {
 }
 
 final class SpriteView: NSView {
-    static let unit: CGFloat = 6
+    /// Pixel size of one sprite square: small 4 (as on the website), medium 6, large 7.
+    static var unit: CGFloat {
+        switch UserDefaults.standard.string(forKey: "size") {
+        case "small": return 4
+        case "large": return 7
+        default: return 6
+        }
+    }
     var pose = Pose() { didSet { if pose != oldValue { needsDisplay = true } } }
     var scale: CGFloat = 1 { didSet { if scale != oldValue { needsDisplay = true } } }
     var onDragStart: (() -> Void)?
@@ -1136,7 +1143,10 @@ let doNotification = Notification.Name("com.randomclaudething.clawd.do")
 final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
     enum Mode { case desk, dragging, falling, hopping, docking, docked, game, organizing, flap, mood, ball }
 
-    static let size = NSSize(width: 96, height: 88)
+    static var size: NSSize {
+        let k = SpriteView.unit / 6
+        return NSSize(width: (96 * k).rounded(), height: (88 * k).rounded())
+    }
     static let toggleDefaults: [String: Bool] = [
         "nudges": true, "battery": true, "claude": true, "calendar": false,
         "climb": true, "sounds": true, "quiet": false, "clipboard": false, "updates": true,
@@ -2330,7 +2340,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             spawnIn = max(0.28, 0.75 - gameT * 0.015)
         }
 
-        let clawd = CGRect(x: x + 14, y: y + 4, width: Pet.size.width - 28, height: 56)
+        let clawd = CGRect(x: x + 14 * SpriteView.unit / 6, y: y + 4, width: Pet.size.width - 28 * SpriteView.unit / 6, height: 56 * SpriteView.unit / 6)
         var keep: [Token] = []
         for var t in tokens {
             t.y -= t.vy * CGFloat(dt)
@@ -2918,7 +2928,7 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if menuDrag {
                 let m = NSEvent.mouseLocation
                 if NSEvent.pressedMouseButtons & 1 != 0 {
-                    panel.setFrameOrigin(CGPoint(x: m.x - Pet.size.width / 2, y: m.y - 50))
+                    panel.setFrameOrigin(CGPoint(x: m.x - Pet.size.width / 2, y: m.y - 50 * SpriteView.unit / 6))
                     dragMoved()
                 } else {
                     menuDrag = false

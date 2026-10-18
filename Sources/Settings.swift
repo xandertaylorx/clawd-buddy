@@ -25,6 +25,23 @@ extension Pet {
         iconCache.removeAll()
     }
 
+    @objc func settingSize(_ p: NSPopUpButton) {
+        UserDefaults.standard.set(p.selectedItem?.representedObject as? String ?? "medium", forKey: "size")
+        applySize()
+    }
+
+    /// Resizes his window around the same feet position after the size setting changes.
+    func applySize() {
+        guard panel != nil else { return }
+        let old = panel.frame
+        let new = Pet.size
+        x += (old.width - new.width) / 2
+        panel.setContentSize(new)
+        view.frame = NSRect(origin: .zero, size: new)
+        if mode == .desk { panel.setFrameOrigin(CGPoint(x: x, y: y)) }
+        view.needsDisplay = true
+    }
+
     // building blocks
     private func label(_ s: String, size: CGFloat = 13, bold: Bool = false, gray: Bool = false) -> NSTextField {
         let t = NSTextField(labelWithString: s)
@@ -119,6 +136,17 @@ extension Pet {
         outfit.action = #selector(settingOutfit(_:))
         let outfitRow = NSStackView(views: [label("Outfit"), outfit])
         outfitRow.spacing = 10
+        let sizePop = NSPopUpButton(frame: .zero, pullsDown: false)
+        for (title, key) in [("Small", "small"), ("Medium", "medium"), ("Large", "large")] {
+            sizePop.addItem(withTitle: title)
+            sizePop.lastItem?.representedObject = key
+        }
+        let curSize = UserDefaults.standard.string(forKey: "size") ?? "medium"
+        if let i = sizePop.itemArray.firstIndex(where: { ($0.representedObject as? String) == curSize }) { sizePop.selectItem(at: i) }
+        sizePop.target = self
+        sizePop.action = #selector(settingSize(_:))
+        let sizeRow = NSStackView(views: [label("Size"), sizePop])
+        sizeRow.spacing = 10
         let city = NSButton(title: "Set weather city…", target: self, action: #selector(setWeatherCity))
         let weatherRow = NSStackView(views: [label(weatherSummary()), city])
         weatherRow.spacing = 10
@@ -127,6 +155,7 @@ extension Pet {
             checkbox("Weird moods", key: "moods", note: "Rare events: building a fort, peeking at you, sneezing, turning into a ghost."),
             checkbox("Climb on windows", key: "climb", note: "He hops onto the tops of your windows now and then."),
             checkbox("Keep clipboard history", key: "clipboard", note: "The last 10 things you copied, in memory only. Passwords are skipped."),
+            sizeRow,
             outfitRow,
             weatherRow,
         ])

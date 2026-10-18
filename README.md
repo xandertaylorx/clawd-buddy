@@ -36,6 +36,10 @@ open build/Clawd.app
 
 He drops in from the top of your screen. Right-click him for the menu. The app is ad-hoc signed, so if macOS complains the first time, right-click `Clawd.app` and choose **Open**.
 
+## Pick his size
+
+Settings → Fun & look → **Size** switches him between **Small** (the size he is on the website), **Medium** (the default) and **Large**. It applies instantly, no restart.
+
 ## He lives in the menu bar
 
 Drag him up to the menu bar and let go. He shrinks into a status item and carries on from there: blinking, walking in place, dancing, and popping up short phrases next to his icon. **Drag him back out** of the menu bar to carry him down and drop him anywhere on the desktop, or click him for his menu and pick **Let Clawd out**.
