@@ -638,6 +638,27 @@ final class TileView: NSView {
     }
 }
 
+/// Sits over his menu bar icon so files, links and text can be dropped on him while he's docked.
+/// Clicks pass straight through to the button.
+final class StatusDropView: NSView {
+    var onDragEnter: ((DropItems) -> Void)?
+    var onDragLeave: (() -> Void)?
+    var onDrop: ((DropItems) -> Bool)?
+
+    override init(frame f: NSRect) {
+        super.init(frame: f)
+        registerForDraggedTypes([.fileURL, .URL, .string])
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draggingEntered(_ s: NSDraggingInfo) -> NSDragOperation { onDragEnter?(readDrop(s.draggingPasteboard)); return .copy }
+    override func draggingExited(_ s: NSDraggingInfo?) { onDragLeave?() }
+    override func performDragOperation(_ s: NSDraggingInfo) -> Bool { onDrop?(readDrop(s.draggingPasteboard)) ?? false }
+
+    override func mouseDown(with event: NSEvent) { superview?.mouseDown(with: event) }
+    override func rightMouseDown(with event: NSEvent) { superview?.rightMouseDown(with: event) }
+}
+
 final class DropTray {
     let panel: NSPanel
     var tiles: [TileView] = []
@@ -681,10 +702,10 @@ final class DropTray {
     func hide() { panel.orderOut(nil) }
     var isVisible: Bool { panel.isVisible }
 
-    func follow(anchor: NSRect, screenFrame sf: NSRect, topInset: CGFloat) {
+    func follow(anchor: NSRect, screenFrame sf: NSRect, topInset: CGFloat, below: Bool = false) {
         let w = panel.frame.width, h = panel.frame.height
         let x = min(max(anchor.midX - w / 2, sf.minX + 4), sf.maxX - w - 4)
-        let y = min(anchor.maxY + 2, sf.maxY - topInset - h)
+        let y = below ? anchor.minY - h - 2 : min(anchor.maxY + 2, sf.maxY - topInset - h)
         panel.setFrameOrigin(CGPoint(x: x, y: y))
     }
 }
@@ -783,10 +804,10 @@ final class ShelfPanel {
         panel.orderFrontRegardless()
     }
 
-    func follow(anchor: NSRect, screenFrame sf: NSRect, topInset: CGFloat) {
+    func follow(anchor: NSRect, screenFrame sf: NSRect, topInset: CGFloat, below: Bool = false) {
         let w = panel.frame.width, h = panel.frame.height
         let x = min(max(anchor.midX - w / 2, sf.minX + 4), sf.maxX - w - 4)
-        let y = min(anchor.maxY + 2, sf.maxY - topInset - h)
+        let y = below ? anchor.minY - h - 2 : min(anchor.maxY + 2, sf.maxY - topInset - h)
         panel.setFrameOrigin(CGPoint(x: x, y: y))
     }
 }
@@ -1616,6 +1637,14 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.button?.target = self
         item.button?.action = #selector(statusPressed(_:))
         item.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
+        if let b = item.button {
+            let d = StatusDropView(frame: b.bounds)
+            d.autoresizingMask = [.width, .height]
+            d.onDragEnter = { [unowned self] items in self.trayEnter(items) }
+            d.onDragLeave = { [unowned self] in self.trayHideAt = CACurrentMediaTime() + 1.0 }
+            d.onDrop = { [unowned self] items in self.droppedOnClawd(items) }
+            b.addSubview(d)
+        }
         statusItem = item
         lastIconPose = nil
     }
@@ -3071,12 +3100,14 @@ final class Pet: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
 
+        let dockedFrame: NSRect? = mode == .docked ? statusItem?.button?.window?.frame : nil
+        let popAnchor = dockedFrame ?? panel.frame
         if trayUp {
-            tray.follow(anchor: panel.frame, screenFrame: screen.frame, topInset: max(screen.safeAreaInsets.top, 24))
+            tray.follow(anchor: popAnchor, screenFrame: screen.frame, topInset: max(screen.safeAreaInsets.top, 24), below: dockedFrame != nil)
             if let t = trayHideAt, now > t { hideTray() }
         }
         if shelf.isVisible {
-            shelf.follow(anchor: panel.frame, screenFrame: screen.frame, topInset: max(screen.safeAreaInsets.top, 24))
+            shelf.follow(anchor: popAnchor, screenFrame: screen.frame, topInset: max(screen.safeAreaInsets.top, 24), below: dockedFrame != nil)
             if shelf.panel.frame.contains(NSEvent.mouseLocation) { shelfHideAt = max(shelfHideAt, now + 3) }
             if now > shelfHideAt { shelf.hide() }
         }

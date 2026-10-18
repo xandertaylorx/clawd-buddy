@@ -19,7 +19,7 @@ extension Pet {
     }
 
     func trayEnter(_ items: DropItems) {
-        guard mode == .desk else { return }
+        guard mode == .desk || mode == .docked else { return }
         let kinds = trayKinds(for: items)
         guard !kinds.isEmpty else { return }   // plain text / other links: dropping on Clawd saves a note
         promptFolder = nil
