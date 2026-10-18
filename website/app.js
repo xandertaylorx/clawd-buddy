@@ -223,6 +223,7 @@
       p.eyes = 'wide'; const s = Math.floor(now * 7); p.legs = s % 2 ? 2 : 1; p.armL = s % 2; p.armR = (s + 1) % 2;
     } else if (pet.mode === 'ball') {
       updateBall(dt);
+      return;   // updateBall sets the ball pose; don't overwrite it below
     }
     pet.pose = p;
   }
